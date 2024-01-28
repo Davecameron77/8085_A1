@@ -11,8 +11,9 @@ from sklearn.model_selection import train_test_split
 
 # Import data
 dataset = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv')
+# Dependant variable is both classification and prediction for now
 X = dataset.iloc[:, :-2].values
-y = dataset.iloc[:, -1].values
+y = dataset.iloc[:, -2].values
 
 # Split into training and test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
