@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="514295d2-2489-48c3-a714-c12e58f42b6e" name="Changes" comment="">
+    <list default="true" id="514295d2-2489-48c3-a714-c12e58f42b6e" name="Changes" comment="Classifier works">
       <change beforePath="$PROJECT_DIR$/.ipynb_checkpoints/neurips_2022-checkpoint.sty" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Latex/comp8085_report.tex" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Latex/rubrics.tex" beforeDir="false" />
@@ -7395,6 +7398,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="UPDATE_TYPE" value="REBASE" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 0
@@ -7409,6 +7413,10 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "last_opened_file_path": "/Users/davecameron/Developer/PycharmProjects/8085_A1",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "vue.rearranger.settings.migration": "true"
   }
@@ -7428,11 +7436,24 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1707372066451</updated>
-      <workItem from="1707372067514" duration="22000" />
+      <workItem from="1707372067514" duration="460000" />
     </task>
+    <task id="LOCAL-00001" summary="Classifier works">
+      <option name="closed" value="true" />
+      <created>1707372192861</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1707372192861</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Classifier works" />
+    <option name="LAST_COMMIT_MESSAGE" value="Classifier works" />
   </component>
 </project>
