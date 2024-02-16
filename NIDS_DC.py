@@ -64,7 +64,7 @@ y = dataset.iloc[:, -1:]['Label'].tolist()
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
 
 # Train model
-clf = RandomForestClassifier()
+clf = RandomForestClassifier(n_estimators=10, max_depth=20, criterion='entropy')
 clf = clf.fit(X_train, y_train)
 
 # Predict results
