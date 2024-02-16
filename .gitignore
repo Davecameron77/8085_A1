@@ -1,9 +1,5 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
-
-# Excel
-*.xlsx
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
