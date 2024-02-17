@@ -3,6 +3,7 @@ import pandas as pd
 import time
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -35,22 +36,23 @@ def to_df(file):
     df['ct_flw_http_mthd'], _ = pd.factorize(df['ct_flw_http_mthd'])
     df['is_ftp_login'], _ = pd.factorize(df['is_ftp_login'])
     df['ct_ftp_cmd'], _ = pd.factorize(df['ct_ftp_cmd'])
+    df['attack_cat'] = df['attack_cat'].str.strip()
     codes, uniques = pd.factorize(df['attack_cat'])
     df['attack_cat'] = codes
+
     return df, codes, uniques 
 
 
 def train_model(df):
-    #scaler = StandardScaler()
-    #df = scaler.fit_transform(df)
+    
     X = df[feature_cols] # Features
-    # y = df.Label # Target variable
-    y = df.attack_cat
-    # X = apply_PCA(X)
+    scaler = MinMaxScaler()
+    X = scaler.fit_transform(X)
+    y = df.Label # Target variable
+    # y = df.attack_cat
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,random_state=1)
+    X_train, X_test = apply_PCA(X_train, X_test)
     return apply_knn(X_train, y_train, X_test, y_test)
-    #return apply_d_tree(X_train, y_train, X_test, y_test)
-    # return apply_logistic_regression(X_train, y_train, X_test, y_test)
 
 def apply_knn(X_train, y_train, X_test, y_test):
     knn = KNeighborsClassifier()
@@ -65,22 +67,27 @@ def apply_d_tree(X_train, y_train, X_test, y_test):
     return y_test, y_pred
 
 def apply_logistic_regression(X_train, y_train, X_test, y_test):
-    log_reg = LogisticRegression()
+    log_reg = LogisticRegression(max_iter=10000)
     log_reg.fit(X_train, y_train)
     y_pred = log_reg.predict(X_test)
     return y_test, y_pred
 
-def apply_PCA(X):
-    pca = PCA(n_components=2)
-    principal_df = pca.fit_transform(X)
-    return principal_df
+def apply_PCA(train,test):
+    pca = PCA(n_components=10)
+    pca.fit(train)
+    train = pca.transform(train) 
+    test = pca.transform(test)
+    return train, test
 
 def main():
     start_time = time.time()
     df, codes, uniques = to_df(file="UNSW-NB15-BALANCED-TRAIN.csv")
     y_test, y_pred = train_model(df)
-    print(precision_score(y_test, y_pred, average = 'macro'))
-    print(precision_score(y_test, y_pred, average = 'micro'))
+    uniques = uniques.insert(0, ['None'])
+    macro = precision_score(y_test, y_pred, average = 'macro')
+    micro = precision_score(y_test, y_pred, average = 'micro')
+    print(f"macro f1: {macro}")
+    print(f"micro f1: {micro}")
     print(classification_report(y_test, y_pred))
     # print_attack_cat_classification_report_csv(report_str, uniques, codes)
     end_time = time.time()
