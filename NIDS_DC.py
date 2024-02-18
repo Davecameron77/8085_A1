@@ -59,10 +59,10 @@ def advanced_analysis(X_train, X_test, y_train, y_test):
 
 
 # ************************* Generation ************************* #
-def create_model(filename):
+def create_model(filename, n_estimators=100, min_samples_leaf=1, max_depth=1000, max_features='sqrt',
+                 max_leaf_nodes=None):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
-    df['attack_cat'] = df['attack_cat'].str.strip()
     print("Dataset loaded\n")
 
     # Transform object columns
@@ -80,16 +80,19 @@ def create_model(filename):
     df['ct_ftp_cmd'], _ = pd.factorize(df['ct_ftp_cmd'])
     df['attack_cat'] = df['attack_cat'].fillna('')
     df['attack_cat'] = df['attack_cat'].astype('string')
+    df['attack_cat'] = df['attack_cat'].str.strip()
     df = df.replace('Backdoor', 'Backdoors')
     df['Label'] = df['Label'].astype(bool)
 
-    return RandomForestClassifier(n_estimators=75, criterion='entropy', max_depth=100, max_features=5), df
+    return RandomForestClassifier(n_estimators=n_estimators, criterion='entropy', max_depth=max_depth,
+                                  min_samples_leaf=min_samples_leaf, max_features=max_features,
+                                  max_leaf_nodes=max_leaf_nodes, n_jobs=6), df
 
 
 # ************************* Analysis ************************* #
-def perform_analysis(df, clf, FEATURES_TO_USE=12, USE_CORRELATION=True):
+def perform_analysis(df, features_to_use=15, use_correlation=True):
     # Analysis
-    print("Perfoming analysis")
+    print(f'Perfoming analysis using {features_to_use} features')
     analysis_set = df.copy()
     analysis_set['attack_cat'], _ = pd.factorize(analysis_set['attack_cat'])
 
@@ -109,10 +112,10 @@ def perform_analysis(df, clf, FEATURES_TO_USE=12, USE_CORRELATION=True):
     correlation_keys = dict(sorted(correlation_keys.items(), key=lambda x: x[1]))
     covariance_keys = dict(sorted(covariance_keys.items(), key=lambda x: x[1]))
 
-    if USE_CORRELATION:
-        critical_keys = list(correlation_keys.keys())[FEATURES_TO_USE * -1:]
+    if use_correlation:
+        critical_keys = list(correlation_keys.keys())[features_to_use * -1:]
     else:
-        critical_keys = list(covariance_keys.keys())[FEATURES_TO_USE * -1:]
+        critical_keys = list(covariance_keys.keys())[features_to_use * -1:]
     critical_keys = np.array(critical_keys)
     print('found critical keys: ', critical_keys)
     X = df.iloc[:, np.r_[critical_keys]]
@@ -124,17 +127,15 @@ def perform_analysis(df, clf, FEATURES_TO_USE=12, USE_CORRELATION=True):
     print("Created PairPlot")
 
     # Create heatmap
-    heatmap = sns.heatmap(X_Temp.head(10000), annot=True, xticklabels=X.columns, yticklabels=X.columns)
-    figure = heatmap.get_figure()
-    display.Image(figure)
-    figure.savefig("heatmap.png")
+    heatmap = sns.heatmap(X_Temp.head(10000), xticklabels=X.columns, yticklabels=X.columns)
+    heatmap.get_figure().savefig("heatmap.png")
     print("Created HeatMap")
 
     return X
 
 
 # ************************* Label Prediction ************************* #
-def classify_label(df, clf, X, RUN_CROSS_VALIDATION=False):
+def classify_label(df, clf, X, run_cross_validation=False):
     # Train label classifier
     print("Training label classifier")
     y = df.iloc[:, -1:]['Label'].tolist()
@@ -152,7 +153,7 @@ def classify_label(df, clf, X, RUN_CROSS_VALIDATION=False):
     print("Accuracy: {:.2f}%\n".format(metrics.accuracy_score(y_test, y_pred) * 100))
     print(metrics.classification_report(y_test, y_pred))
 
-    if RUN_CROSS_VALIDATION:
+    if run_cross_validation:
         print("************************************************************")
         print("Analyzing cross validation")
         cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=4)
@@ -162,7 +163,7 @@ def classify_label(df, clf, X, RUN_CROSS_VALIDATION=False):
 
 
 # ************************* Attack_Cat Prediction ************************* #
-def classify_attack_cat(df, clf, X, RUN_CROSS_VALIDATION=False):
+def classify_attack_cat(df, clf, X, run_cross_validation=False):
     # Train attack_cat classifier
     print("Training attack_cat classifier")
     y = df.iloc[:, -2:-1]['attack_cat'].tolist()
@@ -180,7 +181,7 @@ def classify_attack_cat(df, clf, X, RUN_CROSS_VALIDATION=False):
     print("Accuracy: {:.2f}%\n".format(metrics.accuracy_score(y_test, y_pred) * 100))
     print(metrics.classification_report(y_test, y_pred))
 
-    if RUN_CROSS_VALIDATION:
+    if run_cross_validation:
         print("************************************************************")
         print("Analyzing cross validation")
         cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=4)
@@ -197,9 +198,9 @@ else:
 
 start_time = time.time()
 
-clf, df = create_model(filename)
-X = perform_analysis(df, clf)
-# classify_label(df, clf, X)
+clf, df = create_model(filename, 100, 1, 30, 30, None)
+X = perform_analysis(df)
+classify_label(df, clf, X)
 classify_attack_cat(df, clf, X)
 
 execution_time = time.time() - start_time
