@@ -90,7 +90,7 @@ def create_model(filename, n_estimators=100, min_samples_leaf=1, max_depth=1000,
 
 
 # ************************* Analysis ************************* #
-def perform_analysis(df, features_to_use=15, use_correlation=True):
+def perform_analysis(df, features_to_use=18, use_correlation=True):
     # Analysis
     print(f'Perfoming analysis using {features_to_use} features')
     analysis_set = df.copy()
