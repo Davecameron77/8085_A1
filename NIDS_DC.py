@@ -137,6 +137,7 @@ def perform_analysis(df, features_to_use=18, use_correlation=True):
         critical_keys = list(covariance_keys.keys())[features_to_use * -1:]
     critical_keys = np.array(critical_keys)
     print('found critical keys: ', critical_keys)
+    critical_keys = np.array([14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2])
     X = df.iloc[:, np.r_[critical_keys]]
     X_Temp = analysis_set.iloc[:, np.r_[critical_keys, (len(df.columns) - 2)]]
 
@@ -178,7 +179,7 @@ def classify_label(df, clf, X, run_cross_validation=False):
     if run_cross_validation:
         print("************************************************************")
         print("Analyzing cross validation")
-        cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=4)
+        cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=-1)
         print(f'Cross Validation Score:\n{cross_validation}')
 
     print("************************************************************\n")
@@ -206,7 +207,7 @@ def classify_attack_cat(df, clf, X, run_cross_validation=False):
     if run_cross_validation:
         print("************************************************************")
         print("Analyzing cross validation")
-        cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=4)
+        cross_validation = cross_val_score(clf, X, y, cv=5, scoring='accuracy', n_jobs=-1)
         print(f'Cross Validation Score:\n{cross_validation}')
 
     print("************************************************************\n")
@@ -223,8 +224,8 @@ start_time = time.time()
 clf, df = create_model(filename, 1000, 10, 2, None, 24, True)
 X = perform_analysis(df)
 # advanced_analysis(X, df)
-# classify_label(df, clf, X)
-classify_attack_cat(df, clf, X)
+classify_label(df, clf, X)
+# classify_attack_cat(df, clf, X)
 
 execution_time = time.time() - start_time
 print(f"Execution took {round(execution_time, 2)} seconds")
