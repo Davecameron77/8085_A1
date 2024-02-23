@@ -14,6 +14,7 @@ from sklearn.metrics import classification_report
 from sklearn import metrics
 import pickle
 from sklearn.preprocessing import MinMaxScaler
+import argparse
 # from imblearn.over_sampling import SMOTE
 
 class Classification_target(Enum):
@@ -88,26 +89,30 @@ def classify(x_train, x_test, y_train, classifier):
     y_predict = classifier.predict(x_test)
     return y_predict
 
-def main(argv): 
-    filename = ""
-    classification_method = ""
-    task = ""
-    if len(sys.argv) > 0:
-        filename = sys.argv[1]
-        classification_method = sys.argv[2]
-        task = sys.argv[3]
-        # load_model_name = sys.argv[4]
-    else:
-        exit(1)
+def main(argv):
+    optional_load_model_name = "" 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename')  
+    parser.add_argument('classification_method')   
+    parser.add_argument('task')    
+    parse.add_argument('optional_load_model_name')
+    args = parser.parse_args()
+    filename = args.filename
+    classification_method = args.classification_method
+    task = args.task
+    optional_load_model_name = args.optional_load_model_name
 
     classifier = None
     classifier_enum = None
+    
+    if optional_load_model_name != None or optional_load_model_name != "" :
+         classifier = pickle.load(open(optional_load_model_name, 'rb')) 
+
     if classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
     elif classification_method == "LogisticRegression":
-        classifier = pickle.load(open('Model_LR_lab', 'rb')) 
         classifier_enum = Classifier.LogisticRegression 
     elif classification_method == "KNearestNeighbors":
         classifier = KNeighborsClassifier() 
@@ -118,7 +123,6 @@ def main(argv):
         classification_target = Classification_target.Label
     else:
         classification_target = Classification_target.Attack_cat
-        classifier = pickle.load(open('Model_LR_atk', 'rb')) 
 
     start_time = time.time()
     df, uniques = create_model(filename)
