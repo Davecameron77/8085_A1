@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from itertools import count
-
+from enum import Enum
 import numpy as np
 import pandas as pd
 import sys
@@ -9,14 +9,35 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
 from sklearn import metrics
 import pickle
 from sklearn.preprocessing import MinMaxScaler
-from imblearn.over_sampling import SMOTE
+# from imblearn.over_sampling import SMOTE
 
+class Classification_target(Enum):
+    Label = 1
+    Attack_cat = 2
+
+class Classifier(Enum):
+    RandomForestClassifier = 1
+    LogisticRegression = 2
+    KNearestNeighbors = 3
+
+feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state',
+                    'dur', 'sbytes', 'dbytes', 'sttl', 'dttl', 'sloss',
+                    'dloss', 'service', 'Sload', 'Dload', 'Spkts', 'Dpkts',
+                    'swin', 'dwin', 'stcpb', 'dtcpb', 'smeansz', 'dmeansz',
+                    'trans_depth', 'res_bdy_len', 'Sjit', 'Djit', 'Stime',
+                    'Ltime', 'Sintpkt', 'Dintpkt', 'tcprtt', 'synack',
+                    'ackdat', 'is_sm_ips_ports', 'ct_state_ttl',
+                    'ct_flw_http_mthd', 'is_ftp_login', 'ct_ftp_cmd',
+                    'ct_srv_src', 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm',
+                    'ct_src_dport_ltm', 'ct_dst_sport_ltm', 'ct_dst_src_ltm']
 
 def create_model(filename):
-    """
+
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
     print("Dataset loaded\n")
@@ -35,143 +56,80 @@ def create_model(filename):
     df['is_ftp_login'], _ = pd.factorize(df['is_ftp_login'])
     df['ct_ftp_cmd'], _ = pd.factorize(df['ct_ftp_cmd'])
     df['attack_cat'] = df['attack_cat'].fillna('')
-    df['attack_cat'] = df['attack_cat'].astype('string')
+    df['attack_cat'] = df['attack_cat'].astype('str')
     df['attack_cat'] = df['attack_cat'].str.strip()
+    codes, uniques = pd.factorize(df['attack_cat'])
     df = df.replace('Backdoor', 'Backdoors')
-    df['Label'] = df['Label'].astype(bool)
-    """
-    ############################################
-    print("Reading data...")
-    dataset = pd.read_csv(filename, low_memory=False)
     
-    dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', 'Backdoors')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers ', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', 'Reconnaissance')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', 'Shellcode')
+    df = df.apply(lambda x: pd.factorize(x)[0])
 
-    dataset['attack_cat'] = dataset['attack_cat'].fillna('Benign')
-    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
-
-    o = (dataset.dtypes == 'object')
-    object_cols = list(o[o].index)
-
-    for label in object_cols:
-        dataset[label], _ = pd.factorize(dataset[label])
-
-    cols = list(dataset.columns)
-    cols.pop()
-    cols.pop()
-
-    mm = MinMaxScaler()
-    dataset[cols] = mm.fit_transform(dataset[cols])
-
-    return dataset
-    ############################################
-
-    return df
+    return df, uniques 
 
 
-def classify_label(dataframe, with_classifier=''):
-    indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
-    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+def df_preprocessing(df, classifier, target):
+    scaler = None
+    if classifier == Classifier.LogisticRegression:
+        scaler = MinMaxScaler()
+        x = scaler.fit_transform(df[feature_cols])
+    elif classifier == Classifier.KNearestNeighbors:
+        x = df[feature_cols]
+        scaler = StandardScaler()
+        x = scaler.fit_transform(x)
+    else:
+        x = df[feature_cols]
+    if target == Classification_target.Label: 
+        y = df.Label # Target variable
+    elif target == Classification_target.Attack_cat:
+        y = df.attack_cat
+    return train_test_split(x, y, test_size=1 / 5, random_state=0)
 
+def classify(x_train, x_test, y_train, classifier):
+    classifier.fit(x_train, y_train)
+    y_predict = classifier.predict(x_test)
+    return y_predict
 
-    #x = dataframe.iloc[:, np.r_[indices]]
-    #y = df.iloc[:, -1:]['Label'].tolist()
+def main(argv): 
+    filename = ""
+    classification_method = ""
+    task = ""
+    if len(sys.argv) > 0:
+        filename = sys.argv[1]
+        classification_method = sys.argv[2]
+        task = sys.argv[3]
+        # load_model_name = sys.argv[4]
+    else:
+        exit(1)
 
-    ######################################
-    x = dataframe[Feat15].values
-    y = dataframe.iloc[:, -1].values
-    ######################################
-
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
-
-    ##################################################
-    print("SMOTEin'...")
-    sm = SMOTE(random_state = 1, k_neighbors = 5)
-    x_train, y_train = sm.fit_resample(x_train, y_train)
-    unique, counts = np.unique(y_train, return_counts=True)
-    print(np.asarray((unique,counts)).T)
-    ################################################
-
-    if with_classifier == 'RandomForestClassifier':
+    classifier = None
+    classifier_enum = None
+    if classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
-    if with_classifier == 'LogisticRegression':
-        classifier = pickle.load(open('Model_LR_lab', 'rb'))
-    if with_classifier == 'KNearestNeighbors':
-        #TODO - Raymond
-        classifier = KNeighborsClassifier()
+        classifier_enum = Classifier.RandomForestClassifier 
+    elif classification_method == "LogisticRegression":
+        classifier = pickle.load(open('Model_LR_lab', 'rb')) 
+        classifier_enum = Classifier.LogisticRegression 
+    elif classification_method == "KNearestNeighbors":
+        classifier = KNeighborsClassifier() 
+        classifier_enum = Classifier.KNearestNeighbors 
 
-    if(with_classifier != 'LogisticRegression'):
-        print("Training...")
-        classifier.fit(x_train, y_train)
-    y_pred = classifier.predict(x_test)
+    classification_target = None 
+    if task.lower() == 'label':
+        classification_target = Classification_target.Label
+    else:
+        classification_target = Classification_target.Attack_cat
+        classifier = pickle.load(open('Model_LR_atk', 'rb')) 
 
-    print('Accuracy: {:.2f}%\n'.format(metrics.accuracy_score(y_test, y_pred) * 100))
-    print(metrics.classification_report(y_test, y_pred))
-
-
-def classify_attack_cat(dataframe, with_classifier=''):
-    indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
-    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-
-
-    #x = dataframe.iloc[:, np.r_[indices]]
-    #y = df.iloc[:, -2]['attack_cat'].tolist()
-
-    ######################################
-    x = dataframe[Feat15].values
-    y = dataframe.iloc[:, -2].values
-    ######################################
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1 / 5, random_state=0)
-
-    ##################################################
-    print("SMOTEin'...")
-    sm = SMOTE(random_state = 1, k_neighbors = 5)
-    x_train, y_train = sm.fit_resample(x_train, y_train)
-    unique, counts = np.unique(y_train, return_counts=True)
-    print(np.asarray((unique,counts)).T)
-    ################################################
-
-    if with_classifier == 'RandomForestClassifier':
-        classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
-                                            min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
-    if with_classifier == 'LogisticRegression':
-        classifier = pickle.load(open('Model_LR_atk', 'rb'))
-    if with_classifier == 'KNearestNeighbors':
-        #TODO - Raymond
-        classifier = KNeighborsClassifier()
-
-    if(with_classifier != 'LogisticRegression'):
-        print("Training...")
-        classifier.fit(x_train, y_train)
-    y_pred = classifier.predict(x_test)
-
-    print('Accuracy: {:.2f}%\n'.format(metrics.accuracy_score(y_test, y_pred) * 100))
-    print(metrics.classification_report(y_test, y_pred))
+    start_time = time.time()
+    df, uniques = create_model(filename)
+    x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target)
+    y_predict = classify(x_train, x_test, y_train, classifier)
+    uniques = uniques.insert(0, ['None'])
+    print(classification_report(y_test, y_predict))
+    y_predict = execution_time = time.time() - start_time
+    print(f'Execution took {round(execution_time, 2)} seconds')
 
 
-filename = ""
+if __name__ == "__main__":
+    main(sys.argv)
 
-if len(sys.argv) > 0:
-    filename = sys.argv[1]
-    classification_method = sys.argv[2]
-    task = sys.argv[3]
-    load_model_name = sys.argv[4]
-
-else:
-    exit(1)
-
-
-start_time = time.time()
-
-df = create_model(filename)
-if task.lower() == 'label':
-    classify_label(df, with_classifier=classification_method)
-else:
-    classify_attack_cat(df, with_classifier=classification_method)
-
-execution_time = time.time() - start_time
-print(f'Execution took {round(execution_time, 2)} seconds')
