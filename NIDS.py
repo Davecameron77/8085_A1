@@ -158,7 +158,7 @@ def classify_attack_cat(dataframe, with_classifier=''):
 
 
 filename = ""
-"""
+
 if len(sys.argv) > 0:
     filename = sys.argv[1]
     classification_method = sys.argv[2]
@@ -167,13 +167,6 @@ if len(sys.argv) > 0:
 
 else:
     exit(1)
-"""
-
-#####################################################
-filename = 'UNSW-NB15-BALANCED-TRAIN.csv'
-classification_method = 'RandomForestClassifier'
-task = 'atk_cat'
-#####################################################
 
 start_time = time.time()
 
