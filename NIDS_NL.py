@@ -1,29 +1,21 @@
 import pandas as pd
 import numpy as np
 import time
-import logging
-import pickle
-
-from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 from sklearn.feature_selection import RFE
-
-from sklearn.metrics import accuracy_score
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.svm import NuSVC
-from sklearn.linear_model import Perceptron
-from sklearn import metrics
-from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, classification_report
 
 
-def FeatureSelection():
-    dataset = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False)
+def preprocessing(datafile):
+
+    print("Reading data...")
+    dataset = pd.read_csv(datafile, low_memory=False)
     
     dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', 'Backdoors')
     dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', 'Fuzzers')
@@ -31,30 +23,76 @@ def FeatureSelection():
     dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', 'Reconnaissance')
     dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', 'Shellcode')
 
+    dataset['attack_cat'] = dataset['attack_cat'].fillna('Benign')
+    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
+
     o = (dataset.dtypes == 'object')
     object_cols = list(o[o].index)
-
-    o = (dataset.dtypes != 'object')
-    scale_cols = list(o[o].index)
-    del scale_cols[-1]
 
     for label in object_cols:
         dataset[label], _ = pd.factorize(dataset[label])
 
+    cols = list(dataset.columns)
+    cols.pop()
+    cols.pop()
 
-    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
-    
     mm = MinMaxScaler()
+    dataset[cols] = mm.fit_transform(dataset[cols])
 
-    dataset[scale_cols] = mm.fit_transform(dataset[scale_cols])
+    return dataset
 
-    print("Dataset read")
+
+def resampling(X,y):
+    sampDict = {0:30000, 1:30000}
+    us = RandomUnderSampler(sampling_strategy=sampDict)
+    X_train, y_train = us.fit_resample(X, y)
+
+    print("SMOTEin'...")
+    sm = SMOTE(random_state = 1, k_neighbors = 5)
+    X_train, y_train = sm.fit_resample(X, y)
+
+    return X_train, y_train
+
+
+def predict(X_train, y_train, X_test, y_test, show_con):
+
+    tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
+
+    t = time.process_time()
+
+    clf = LogisticRegression(solver='saga', penalty='l1', n_jobs=-1, max_iter=100)
+
+    print("training...")
+    clf.fit(X_train, y_train)
+
+    print("predicting...")
+    y_pred = clf.predict(X_test)
+
+    print("////////////////////////////////////////////////////////////////////////////////")
+    et = time.process_time() - t
+    print("elapsed time: ", et)
+
+    print("Accuracy is : {:.2f}%\n".format(accuracy_score(y_test, y_pred) * 100))
+    print(classification_report(y_test, y_pred, target_names = tl))
+
+    if show_con:
+        plt.rcParams.update({'font.size': 8})
+        cm = confusion_matrix(y_test, y_pred, normalize='true')
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=tl)
+        disp.plot()
+        plt.show()
+
+
+def FeatureSelection(datafile, show_con = False):
+
+    dataset = preprocessing(datafile)
 
     X = dataset.iloc[:, :-2].values
     y = dataset.iloc[:, -2].values
 
-
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
+
+    X_train, y_train = resampling(X_train, y_train)
 
     clf = RandomForestClassifier(max_depth=10)
     sel = RFE(clf, n_features_to_select=17 , step=10)
@@ -75,126 +113,57 @@ def FeatureSelection():
     
     exit()
 
-def classifyLab():
-    labFeat10 = ['sbytes', 'dbytes', 'sttl', 'dttl', 'Dload', 'Dpkts', 'dmeansz', 'Dintpkt', 'synack', 'ct_state_ttl']
-    labFeat5 = ['dbytes', 'sttl', 'Dload', 'dmeansz', 'ct_state_ttl']
 
-    dataset = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False)
+def classifyLab(datafile, show_con = False):
 
-    dataset['attack_cat'] = dataset['attack_cat'].fillna('Benign')
-    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
+    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
 
-    dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', 'Backdoors')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers ', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', 'Reconnaissance')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', 'Shellcode')
+    dataset = preprocessing(datafile)
 
-    o = (dataset.dtypes == 'object')
-    object_cols = list(o[o].index)
-
-    le = LabelEncoder()
-    for label in object_cols:
-        #dataset[label] = le.fit_transform(dataset[label])
-        dataset[label], _ = pd.factorize(dataset[label])
-
-
-    
-
-    print("Dataset read")
-
-    X = dataset[labFeat10].values
+    X = dataset[Feat15].values
     y = dataset.iloc[:, -1].values
-
-    t = time.process_time()
- 
-    clf = LogisticRegression (max_iter=1000)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.20, random_state=0)
-    clf = clf.fit(X_train, y_train)
-
-    
-    y_pred = clf.predict(X_test)
-    ac = accuracy_score(y_test, y_pred) * 100
-
-    print("////////////////////////////////")
-    et = time.process_time() - t
-    print("elapsed time: ", et)
-    print("Logistic Regression Accuracy for Label is ", ac)
-    print("Accuracy: {:.2f}%\n".format(metrics.accuracy_score(y_test, y_pred) * 100))
-    print(metrics.classification_report(y_test, y_pred))
-    print("////////////////////////////////")
-
-def classifyAtk():
-
-    atkFeat20 = ['sport', 'dsport', 'proto', 'state', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload',
-'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'tcprtt', 'ackdat', 'ct_state_ttl', 'ct_srv_src', 'ct_srv_dst', 'ct_src_dport_ltm']
-    atkFeat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-    atkFeat10 = ['sport', 'dsport', 'sbytes', 'sttl', 'dttl', 'service', 'Dload', 'smeansz', 'dmeansz', 'ct_state_ttl']
-    atkFeat5 = ['sport', 'dsport', 'sbytes', 'sttl', 'ct_state_ttl']
-
-    tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Reconnaissance', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
-
-    dataset = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False)
-    
-    dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', 'Backdoors')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers ', 'Fuzzers')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', 'Reconnaissance')
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', 'Shellcode')
-
-    dataset['attack_cat'] = dataset['attack_cat'].fillna('Benign')
-    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
-
-    o = (dataset.dtypes == 'object')
-    object_cols = list(o[o].index)
-
-
-    print(dataset.head(10))
-
-    print(dataset['attack_cat'].value_counts())
-
-    for label in object_cols:
-        dataset[label], _ = pd.factorize(dataset[label])
-
-    
-    cols = list(dataset.columns)
-    cols.pop()
-    cols.pop()
-
-    mm = MinMaxScaler()
-    dataset[cols] = mm.fit_transform(dataset[cols])
-
-    print(dataset.head(10))
-
-    X = dataset[atkFeat15].values
-    y = dataset.iloc[:, -2].values
-
-    print(dataset['attack_cat'].value_counts())
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
+    X_train, y_train = resampling(X_train, y_train)
+
+    predict(X_train, y_train, X_test, y_test, show_con)
+
+
+def classifyAtk(datafile, show_con = False):
+
+    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+
+    dataset = preprocessing(datafile)
+
+    X = dataset[Feat15].values
+    y = dataset.iloc[:, -2].values
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
-    t = time.process_time()
+    X_train, y_train = resampling(X_train, y_train)
 
-    clf = LogisticRegression()
-  
-    print("training...")
-    clf.fit(X_train, y_train)
+    predict(X_train, y_train, X_test, y_test, show_con)
 
-    print("predicting...")
-    y_pred = clf.predict(X_test)
 
-    print("////////////////////////////////")
-    et = time.process_time() - t
-    print("elapsed time: ", et)
+def gridSearch(datafile):
+    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+    tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
-    print("Accuracy for Atk is : {:.2f}%\n".format(metrics.accuracy_score(y_test, y_pred) * 100))
-    print(metrics.classification_report(y_test, y_pred, target_names = tl))
+    dataset = preprocessing(datafile)
 
-    """
+    X = dataset[Feat15].values
+    y = dataset.iloc[:, -2].values
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
+    
+    X_train, y_train = resampling(X_train, y_train)
+
+    clf = LogisticRegression(solver='saga', penalty='l1')
+
     print("starting grid...")
-    params = [{'gamma': ['scale', 'auto'],
-               'C' : [1.0, 0.1]}]
+    params = [{'C': [1.0, 3.0, 5.],
+               'max_iter': [10, 50, 100]}]
     
     grid = GridSearchCV(estimator=clf, param_grid=params, scoring='f1_macro', n_jobs=-1, verbose=3)
 
@@ -203,66 +172,14 @@ def classifyAtk():
     print(grid.best_params_)
 
     pred = grid.predict(X_test)
-    print(metrics.classification_report(y_test, pred))
-    """
+    print(classification_report(y_test, pred, target_names=tl))
   
-    #filename = 'SVCPoly.sav'
-    #pickle.dump(clf, open(filename, 'wb'))
-
-def loadClass():
-    filename = 'SVCPoly.sav'
-    clf = pickle.load(open(filename, 'rb'))
-
-    atkFeat20 = ['sport', 'dsport', 'proto', 'state', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload',
-'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'tcprtt', 'ackdat', 'ct_state_ttl', 'ct_srv_src', 'ct_srv_dst', 'ct_src_dport_ltm']
-    atkFeat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-    atkFeat10 = ['sport', 'dsport', 'sbytes', 'sttl', 'dttl', 'service', 'Dload', 'smeansz', 'dmeansz', 'ct_state_ttl']
-    atkFeat5 = ['sport', 'dsport', 'sbytes', 'sttl', 'ct_state_ttl']
-
-    dataset = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False)
-    
-    dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', "Backdoors")
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', "Fuzzers")
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers ', "Fuzzers")
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', "Reconnaissance")
-    dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', "Shellcode")
-
-    object_cols = list(o[o].index)
-
-    for label in object_cols:
-        dataset[label], _ = pd.factorize(dataset[label])
-
-
-    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
-    
-    cols = list(dataset.columns)
-    cols.pop()
-    cols.pop()
-
-    mm = MinMaxScaler()
-    dataset[cols] = mm.fit_transform(dataset[cols])
-
-    print("Dataset read")
-
-    X = dataset[atkFeat15].values
-    y = dataset.iloc[:, -2].values
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.20, random_state=0)
-    
-    t = time.process_time()
-
-    print("predicting...")
-    y_pred = clf.predict(X_test)
-
-    print("////////////////////////////////")
-    et = time.process_time() - t
-    print("elapsed time: ", et)
-
-    print("Accuracy for Atk is : {:.2f}%\n".format(metrics.accuracy_score(y_test, y_pred) * 100))
-    print(metrics.classification_report(y_test, y_pred))
 
 def main():
-    classifyAtk()
+    datafile = 'UNSW-NB15-BALANCED-TRAIN.csv'
+    #classifyAtk(datafile)
+    gridSearch(datafile)
+
 
 if __name__ == "__main__":
     main()

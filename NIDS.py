@@ -11,8 +11,13 @@ from sklearn.model_selection import train_test_split, cross_val_score, Randomize
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn import metrics
 
+from sklearn.preprocessing import MinMaxScaler
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+
 
 def create_model(filename):
+    """
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
     print("Dataset loaded\n")
@@ -35,23 +40,70 @@ def create_model(filename):
     df['attack_cat'] = df['attack_cat'].str.strip()
     df = df.replace('Backdoor', 'Backdoors')
     df['Label'] = df['Label'].astype(bool)
+    """
+    ############################################
+    print("Reading data...")
+    dataset = pd.read_csv(filename, low_memory=False)
+    
+    dataset['attack_cat'] = dataset['attack_cat'].replace('Backdoor', 'Backdoors')
+    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers', 'Fuzzers')
+    dataset['attack_cat'] = dataset['attack_cat'].replace(' Fuzzers ', 'Fuzzers')
+    dataset['attack_cat'] = dataset['attack_cat'].replace(' Reconnaissance ', 'Reconnaissance')
+    dataset['attack_cat'] = dataset['attack_cat'].replace(' Shellcode ', 'Shellcode')
+
+    dataset['attack_cat'] = dataset['attack_cat'].fillna('Benign')
+    dataset[['ct_flw_http_mthd','is_ftp_login']] = dataset[['ct_flw_http_mthd','is_ftp_login']].fillna(0)
+
+    o = (dataset.dtypes == 'object')
+    object_cols = list(o[o].index)
+
+    for label in object_cols:
+        dataset[label], _ = pd.factorize(dataset[label])
+
+    cols = list(dataset.columns)
+    cols.pop()
+    cols.pop()
+
+    mm = MinMaxScaler()
+    dataset[cols] = mm.fit_transform(dataset[cols])
+
+    return dataset
+    ############################################
 
     return df
 
 
 def classify_label(dataframe, with_classifier=''):
     indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
+    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
 
-    x = dataframe.iloc[:, np.r_[indices]]
-    y = df.iloc[:, -1:]['Label'].tolist()
+
+    #x = dataframe.iloc[:, np.r_[indices]]
+    #y = df.iloc[:, -1:]['Label'].tolist()
+
+    ######################################
+    x = dataframe[Feat15].values
+    y = dataframe.iloc[:, -1].values
+    ######################################
 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
+
+    ##################################################
+    sampDict = {0:30000, 1:30000}
+    us = RandomUnderSampler(sampling_strategy=sampDict)
+    x_train, y_train = us.fit_resample(x_train, y_train)
+    print("SMOTEin'...")
+    sm = SMOTE(random_state = 1, k_neighbors = 5)
+    x_train, y_train = sm.fit_resample(x_train, y_train)
+    unique, counts = np.unique(y_train, return_counts=True)
+    print(np.asarray((unique,counts)).T)
+    ################################################
+
     if with_classifier == 'RandomForestClassifier':
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
     if with_classifier == 'LogisticRegression':
-        #TODO - Nate
-        classifier = LogisticRegression(max_iter=1000)
+        classifier = LogisticRegression(max_iter=1000, solver='sag', n_jobs = -1)
     if with_classifier == 'KNearestNeighbors':
         #TODO - Raymond
         classifier = KNeighborsClassifier()
@@ -65,21 +117,39 @@ def classify_label(dataframe, with_classifier=''):
 
 def classify_attack_cat(dataframe, with_classifier=''):
     indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
+    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
 
-    x = dataframe.iloc[:, np.r_[indices]]
-    y = df.iloc[:, -1:]['attack_cat'].tolist()
 
+    #x = dataframe.iloc[:, np.r_[indices]]
+    #y = df.iloc[:, -2]['attack_cat'].tolist()
+
+    ######################################
+    x = dataframe[Feat15].values
+    y = dataframe.iloc[:, -2].values
+    ######################################
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1 / 5, random_state=0)
+
+    ##################################################
+    sampDict = {0:30000, 1:30000}
+    us = RandomUnderSampler(sampling_strategy=sampDict)
+    x_train, y_train = us.fit_resample(x_train, y_train)
+    print("SMOTEin'...")
+    sm = SMOTE(random_state = 1, k_neighbors = 5)
+    x_train, y_train = sm.fit_resample(x_train, y_train)
+    unique, counts = np.unique(y_train, return_counts=True)
+    print(np.asarray((unique,counts)).T)
+    ################################################
+
     if with_classifier == 'RandomForestClassifier':
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
     if with_classifier == 'LogisticRegression':
-        #TODO - Nate
-        classifier = LogisticRegression(max_iter=1000)
+        classifier = LogisticRegression(max_iter=1000, solver='sag', n_jobs = -1)
     if with_classifier == 'KNearestNeighbors':
         #TODO - Raymond
         classifier = KNeighborsClassifier()
 
+    print("Training...")
     classifier.fit(x_train, y_train)
     y_pred = classifier.predict(x_test)
 
@@ -88,6 +158,7 @@ def classify_attack_cat(dataframe, with_classifier=''):
 
 
 filename = ""
+"""
 if len(sys.argv) > 0:
     filename = sys.argv[1]
     classification_method = sys.argv[2]
@@ -96,6 +167,13 @@ if len(sys.argv) > 0:
 
 else:
     exit(1)
+"""
+
+#####################################################
+filename = 'UNSW-NB15-BALANCED-TRAIN.csv'
+classification_method = 'RandomForestClassifier'
+task = 'atk_cat'
+#####################################################
 
 start_time = time.time()
 
