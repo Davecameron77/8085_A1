@@ -10,6 +10,7 @@ from sklearn.preprocessing import MinMaxScaler
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, classification_report
+import pickle
 
 
 def preprocessing(datafile):
@@ -73,6 +74,7 @@ def predict(X_train, y_train, X_test, y_test, show_con):
     print("elapsed time: ", et)
 
     print("Accuracy is : {:.2f}%\n".format(accuracy_score(y_test, y_pred) * 100))
+    print("Classifier: Logistic Regression")
     print(classification_report(y_test, y_pred, target_names = tl))
 
     if show_con:
@@ -159,7 +161,7 @@ def gridSearch(datafile):
     
     X_train, y_train = resampling(X_train, y_train)
 
-    clf = LogisticRegression(solver='saga', penalty='l1')
+    clf = LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=1000)
 
     print("starting grid...")
     params = [{'C': [1.0, 3.0, 5.],
@@ -177,8 +179,8 @@ def gridSearch(datafile):
 
 def main():
     datafile = 'UNSW-NB15-BALANCED-TRAIN.csv'
-    #classifyAtk(datafile)
-    gridSearch(datafile)
+    classifyAtk(datafile)
+    #gridSearch(datafile)
 
 
 if __name__ == "__main__":

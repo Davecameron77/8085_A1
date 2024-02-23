@@ -10,10 +10,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn import metrics
-
+import pickle
 from sklearn.preprocessing import MinMaxScaler
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
 
 
 def create_model(filename):
@@ -89,9 +88,6 @@ def classify_label(dataframe, with_classifier=''):
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
 
     ##################################################
-    sampDict = {0:30000, 1:30000}
-    us = RandomUnderSampler(sampling_strategy=sampDict)
-    x_train, y_train = us.fit_resample(x_train, y_train)
     print("SMOTEin'...")
     sm = SMOTE(random_state = 1, k_neighbors = 5)
     x_train, y_train = sm.fit_resample(x_train, y_train)
@@ -103,12 +99,14 @@ def classify_label(dataframe, with_classifier=''):
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
     if with_classifier == 'LogisticRegression':
-        classifier = LogisticRegression(max_iter=1000, solver='sag', n_jobs = -1)
+        classifier = pickle.load(open('Model_LR_lab', 'rb'))
     if with_classifier == 'KNearestNeighbors':
         #TODO - Raymond
         classifier = KNeighborsClassifier()
 
-    classifier.fit(x_train, y_train)
+    if(with_classifier != 'LogisticRegression'):
+        print("Training...")
+        classifier.fit(x_train, y_train)
     y_pred = classifier.predict(x_test)
 
     print('Accuracy: {:.2f}%\n'.format(metrics.accuracy_score(y_test, y_pred) * 100))
@@ -130,9 +128,6 @@ def classify_attack_cat(dataframe, with_classifier=''):
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1 / 5, random_state=0)
 
     ##################################################
-    sampDict = {0:30000, 1:30000}
-    us = RandomUnderSampler(sampling_strategy=sampDict)
-    x_train, y_train = us.fit_resample(x_train, y_train)
     print("SMOTEin'...")
     sm = SMOTE(random_state = 1, k_neighbors = 5)
     x_train, y_train = sm.fit_resample(x_train, y_train)
@@ -144,13 +139,14 @@ def classify_attack_cat(dataframe, with_classifier=''):
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
     if with_classifier == 'LogisticRegression':
-        classifier = LogisticRegression(max_iter=1000, solver='sag', n_jobs = -1)
+        classifier = pickle.load(open('Model_LR_atk', 'rb'))
     if with_classifier == 'KNearestNeighbors':
         #TODO - Raymond
         classifier = KNeighborsClassifier()
 
-    print("Training...")
-    classifier.fit(x_train, y_train)
+    if(with_classifier != 'LogisticRegression'):
+        print("Training...")
+        classifier.fit(x_train, y_train)
     y_pred = classifier.predict(x_test)
 
     print('Accuracy: {:.2f}%\n'.format(metrics.accuracy_score(y_test, y_pred) * 100))
@@ -167,6 +163,7 @@ if len(sys.argv) > 0:
 
 else:
     exit(1)
+
 
 start_time = time.time()
 
