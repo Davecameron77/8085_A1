@@ -86,7 +86,7 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
         x = scaler.fit_transform(x)
     else:
         if apply_dimension_reduction:
-            x = df[reduced_feature].values
+            x = df[reduced_feature]
         else: 
             x = df[feature_cols]
     
