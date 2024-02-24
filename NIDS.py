@@ -107,8 +107,8 @@ def df_postprocessing(x_train, y_train):
     x_train, y_train = sm.fit_resample(x_train, y_train)
     unique, counts = np.unique(y_train, return_counts=True)
 
-def classify(x_train, x_test, y_train, classifier, classifier_enum):
-    if classifier_enum != Classifier.LogisticRegression:
+def classify(x_train, x_test, y_train, classifier, model_loaded):
+    if not model_loaded:
         classifier.fit(x_train, y_train)
     y_predict = classifier.predict(x_test)
     return y_predict
@@ -116,6 +116,7 @@ def classify(x_train, x_test, y_train, classifier, classifier_enum):
 def main(argv):
     feature_reduction = True
     data_balance = True
+    model_loaded = False
     optional_load_model_name = "" 
     parser = argparse.ArgumentParser()
     parser.add_argument('filename')  
@@ -130,13 +131,15 @@ def main(argv):
     classifier_enum = None
     if len(unknown) == 1:
          optional_load_model_name = unknown[0]
-         classifier = pickle.load(open(optional_load_model_name, 'rb')) 
+         classifier = pickle.load(open(optional_load_model_name, 'rb'))
+         model_loaded = True 
 
-    if classification_method == "RandomForestClassifier":
+    elif classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
     elif classification_method == "LogisticRegression":
+        LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=10000)
         classifier_enum = Classifier.LogisticRegression 
     elif classification_method == "KNearestNeighbors":
         classifier = KNeighborsClassifier() 
@@ -153,7 +156,7 @@ def main(argv):
     x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
     if data_balance:
         df_postprocessing(x_train, y_train)
-    y_predict = classify(x_train, x_test, y_train, classifier, classifier_enum)
+    y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
     if classification_target == Classification_target.Label:
         print(classification_report(y_test, y_predict))
     else:

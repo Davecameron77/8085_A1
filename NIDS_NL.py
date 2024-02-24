@@ -97,7 +97,7 @@ def FeatureSelection(datafile, show_con = False):
     X_train, y_train = resampling(X_train, y_train)
 
     clf = RandomForestClassifier(max_depth=10)
-    sel = RFE(clf, n_features_to_select=17 , step=10)
+    sel = RFE(clf, n_features_to_select=15 , step=10)
 
     t = time.process_time()
     sel = sel.fit(X_train, y_train)
@@ -161,11 +161,24 @@ def gridSearch(datafile):
     
     X_train, y_train = resampling(X_train, y_train)
 
-    clf = LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=1000)
+    clf = LogisticRegression()
 
     print("starting grid...")
-    params = [{'C': [1.0, 3.0, 5.],
-               'max_iter': [10, 50, 100]}]
+    params = [{'solver': ['lbfgs', 'liblinear', 'newton-cg', 'newton-cholesky' 'sag', 'saga' ],
+               'C': [1.0, 3.0, 5.0],
+               'max_iter': [100, 1000, 10000]}]
+    
+    grid = GridSearchCV(estimator=clf, param_grid=params, scoring='f1_macro', n_jobs=-1, verbose=3)
+
+    grid.fit(X_train, y_train)
+
+    print(grid.best_params_)
+
+    pred = grid.predict(X_test)
+    print(classification_report(y_test, pred, target_names=tl))
+
+    params = [{'solver': ['saga' ],
+               'penalty': ['l1', 'l2']}]
     
     grid = GridSearchCV(estimator=clf, param_grid=params, scoring='f1_macro', n_jobs=-1, verbose=3)
 
