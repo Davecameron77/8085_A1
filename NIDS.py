@@ -40,6 +40,7 @@ feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state',
 
 indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
 reduced_feature = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
 
 def create_model(filename):
 
@@ -79,7 +80,7 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
     scaler = None
     if classifier == Classifier.LogisticRegression:
         scaler = MinMaxScaler()
-        x = scaler.fit_transform(df[feature_cols])
+        x = scaler.fit_transform(df[Feat15])
     elif classifier == Classifier.KNearestNeighbors:
         x = df[feature_cols]
         scaler = StandardScaler()
@@ -106,8 +107,9 @@ def df_postprocessing(x_train, y_train):
     x_train, y_train = sm.fit_resample(x_train, y_train)
     unique, counts = np.unique(y_train, return_counts=True)
 
-def classify(x_train, x_test, y_train, classifier):
-    classifier.fit(x_train, y_train)
+def classify(x_train, x_test, y_train, classifier, classifier_enum):
+    if classifier_enum != Classifier.LogisticRegression:
+        classifier.fit(x_train, y_train)
     y_predict = classifier.predict(x_test)
     return y_predict
 
@@ -151,7 +153,7 @@ def main(argv):
     x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
     if data_balance:
         df_postprocessing(x_train, y_train)
-    y_predict = classify(x_train, x_test, y_train, classifier)
+    y_predict = classify(x_train, x_test, y_train, classifier, classifier_enum)
     if classification_target == Classification_target.Label:
         print(classification_report(y_test, y_predict))
     else:
