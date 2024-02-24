@@ -3,82 +3,16 @@ from itertools import count
 
 import numpy as np
 import pandas as pd
-import pydotplus
 import seaborn as sns
 import sys
 import time
-from io import StringIO
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
-from sklearn.tree import export_graphviz
 from sklearn import metrics
-from IPython import display
-
-
-# TODO - In Progress
-def advanced_analysis(X, df):
-    # Number of trees in random forest
-    n_estimators = np.linspace(100, 1000, int((3000 - 100) / 200) + 1, dtype=int)
-    # Number of features to consider at every split
-    max_features = ['auto', 'sqrt', 'log2']
-    # Maximum number of levels in tree
-    max_depth = [1, 5, 10, 20, 50, 75, 100, 150, 200]
-    # Minimum number of samples required to split a node
-    min_samples_split = [1, 2, 5, 10, 15, 20, 30]
-    # Minimum number of samples required at each leaf node
-    min_samples_leaf = [1, 2, 3, 4]
-    # Method of selecting samples for training each tree
-    bootstrap = [True, False]
-    # Criterion
-    criterion = ['gini', 'entropy']
-    random_grid = {'n_estimators': n_estimators,
-                   'max_features': max_features,
-                   'max_depth': max_depth,
-                   'min_samples_split': min_samples_split,
-                   'min_samples_leaf': min_samples_leaf,
-                   'bootstrap': bootstrap,
-                   'criterion': criterion}
-    print('\nRandom Grid\n*******************')
-    print(random_grid)
-
-    y = df.iloc[:, -2:-1]['attack_cat'].tolist()
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 5, random_state=0)
-
-    # Use the random grid to search for best hyperparameters
-    # First create the base model to tune
-    rf_base = RandomForestClassifier()
-    # Random search of parameters, using 3 fold cross validation,
-    # search across 100 different combinations, and use all available cores
-    rf_random = RandomizedSearchCV(estimator=rf_base, param_distributions=random_grid, n_iter=30, cv=5, verbose=2,
-                                   random_state=42, n_jobs=-1)
-    # Fit the random search model
-    rf_random.fit(X_train, y_train)
-
-    print(rf_random.score(X_train, y_train))
-    print(rf_random.score(X_test, y_test))
-
-    print('\nBest params\n**********************\n')
-    print(rf_random.best_params_)
-
-    # Part Two
-    # Create tree
-    # TODO - Cleanup
-    switched_on = False
-    if switched_on:
-        estimator = clf.estimators_[2]
-        class_names = np.array(df['attack_cat'].unique())
-
-        dot_data = StringIO()
-        export_graphviz(estimator, out_file=dot_data, class_names=class_names, rounded=True, proportion=False, precision=2,
-                    filled=True)
-
-        graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
-        graph.write_png('tree.png')
-        display.Image(graph.create_png())
 
 
 # ************************* Generation ************************* #
-def create_model(filename, n_estimators=100, min_samples_split=5, min_samples_leaf=4, max_features='sqrt', max_depth=90,
+def create_model(filename, n_estimators=1000, min_samples_split=10, min_samples_leaf=2, max_features=None, max_depth=24,
                  bootstrap=True):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
@@ -223,9 +157,8 @@ start_time = time.time()
 
 clf, df = create_model(filename, 1000, 10, 2, None, 24, True)
 X = perform_analysis(df)
-# advanced_analysis(X, df)
-classify_label(df, clf, X)
-# classify_attack_cat(df, clf, X)
+# classify_label(df, clf, X)
+classify_attack_cat(df, clf, X)
 
 execution_time = time.time() - start_time
 print(f"Execution took {round(execution_time, 2)} seconds")
