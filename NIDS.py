@@ -27,20 +27,26 @@ class Classifier(Enum):
     LogisticRegression = 2
     KNearestNeighbors = 3
 
-feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state',
-                    'dur', 'sbytes', 'dbytes', 'sttl', 'dttl', 'sloss',
-                    'dloss', 'service', 'Sload', 'Dload', 'Spkts', 'Dpkts',
-                    'swin', 'dwin', 'stcpb', 'dtcpb', 'smeansz', 'dmeansz',
-                    'trans_depth', 'res_bdy_len', 'Sjit', 'Djit', 'Stime',
-                    'Ltime', 'Sintpkt', 'Dintpkt', 'tcprtt', 'synack',
-                    'ackdat', 'is_sm_ips_ports', 'ct_state_ttl',
-                    'ct_flw_http_mthd', 'is_ftp_login', 'ct_ftp_cmd',
-                    'ct_srv_src', 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm',
-                    'ct_src_dport_ltm', 'ct_dst_sport_ltm', 'ct_dst_src_ltm']
+feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state', 'dur', 
+                'sbytes', 'dbytes', 'sttl', 'dttl', 'sloss', 'dloss', 'service', 
+                'Sload', 'Dload', 'Spkts', 'Dpkts', 'swin', 'dwin', 'stcpb', 
+                'dtcpb', 'smeansz', 'dmeansz', 'trans_depth', 'res_bdy_len', 
+                'Sjit', 'Djit', 'Stime', 'Ltime', 'Sintpkt', 'Dintpkt', 
+                'tcprtt', 'synack', 'ackdat', 'is_sm_ips_ports', 'ct_state_ttl',
+                'ct_flw_http_mthd', 'is_ftp_login', 'ct_ftp_cmd', 'ct_srv_src', 
+                'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm', 'ct_src_dport_ltm', 
+                'ct_dst_sport_ltm', 'ct_dst_src_ltm']
 
-indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
-reduced_feature = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+rfc_features = ['dur', 'sbytes', 'smeansz', 'trans_depth', 'Sjit', 'dstip', 
+                'service', 'Sload', 'Stime', 'Ltime', 'synack', 'proto', 
+                'tcprtt', 'state', 'ackdat', 'dttl', 'ct_state_ttl', 'sttl']
+
+reduced_feature = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 
+                   'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 
+                   'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 
+                   'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 
+                   'ct_state_ttl', 'ct_srv_dst']
 
 def create_model(filename):
 
@@ -59,13 +65,17 @@ def create_model(filename):
     df['state'], _ = pd.factorize(df['state'])
     df['service'], _ = pd.factorize(df['service'])
     df['ct_flw_http_mthd'], _ = pd.factorize(df['ct_flw_http_mthd'])
-    df['is_ftp_login'], _ = pd.factorize(df['is_ftp_login'])
+    df['is_ftp_login'] = df['is_ftp_login'].astype(bool)
+    df['is_sm_ips_ports'] = df['is_sm_ips_ports'].astype(bool)
     df['ct_ftp_cmd'], _ = pd.factorize(df['ct_ftp_cmd'])
     df['attack_cat'] = df['attack_cat'].astype('str')
     df['attack_cat'] = df['attack_cat'].str.strip()
+    df['attack_cat'] = df['attack_cat'].replace('Backdoor', 'Backdoors')
+    df['attack_cat'] = df['attack_cat'].replace('nan', 'Benign')
+    df['Label'] = df['Label'].astype(bool)
     codes, uniques = pd.factorize(df['attack_cat'])
     df['attack_cat'] = codes
-    df = df.replace('Backdoor', 'Backdoors')
+
 
     return df, uniques 
 
@@ -85,6 +95,8 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
         x = df[feature_cols]
         scaler = StandardScaler()
         x = scaler.fit_transform(x)
+    elif classifier == Classifier.RandomForestClassifier:
+        x = df[rfc_features]
     else:
         if apply_dimension_reduction:
             x = df[reduced_feature]
@@ -95,7 +107,7 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
         y = df.Label # Target variable
     elif target == Classification_target.Attack_cat:
         y = df.attack_cat
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1 / 5, random_state=0)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
 
     if classifier == Classifier.KNearestNeighbors and apply_dimension_reduction:
         x_train, x_test = apply_PCA(x_train, x_test)
@@ -135,8 +147,12 @@ def main(argv):
          model_loaded = True 
 
     if classification_method == "RandomForestClassifier":
-        classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
-                                            min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
+        classifier = RandomForestClassifier(n_estimators=1000, 
+                                            criterion='entropy', max_depth=24, 
+                                            min_samples_split=10,
+                                            min_samples_leaf=2, 
+                                            max_features=None, bootstrap=True, 
+                                            n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
     elif classification_method == "LogisticRegression":
         LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=10000)
