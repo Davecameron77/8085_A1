@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import sys
 import time
+from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
@@ -15,7 +16,7 @@ from sklearn import metrics
 import pickle
 from sklearn.preprocessing import MinMaxScaler
 import argparse
-# from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE
 
 class Classification_target(Enum):
     Label = 1
@@ -37,6 +38,9 @@ feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state',
                     'ct_srv_src', 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm',
                     'ct_src_dport_ltm', 'ct_dst_sport_ltm', 'ct_dst_src_ltm']
 
+indices = [14, 29, 28, 26, 7, 9, 10, 4, 22, 36, 31, 5, 39, 2]
+reduced_feature = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+
 def create_model(filename):
 
     print(f'Loading data from {filename}')
@@ -56,18 +60,22 @@ def create_model(filename):
     df['ct_flw_http_mthd'], _ = pd.factorize(df['ct_flw_http_mthd'])
     df['is_ftp_login'], _ = pd.factorize(df['is_ftp_login'])
     df['ct_ftp_cmd'], _ = pd.factorize(df['ct_ftp_cmd'])
-    df['attack_cat'] = df['attack_cat'].fillna('')
     df['attack_cat'] = df['attack_cat'].astype('str')
     df['attack_cat'] = df['attack_cat'].str.strip()
     codes, uniques = pd.factorize(df['attack_cat'])
+    df['attack_cat'] = codes
     df = df.replace('Backdoor', 'Backdoors')
-    
-    df = df.apply(lambda x: pd.factorize(x)[0])
 
     return df, uniques 
 
+def apply_PCA(train,test):
+    pca = PCA(n_components=10, svd_solver='full')
+    pca.fit(train)
+    train = pca.transform(train) 
+    test = pca.transform(test)
+    return train, test
 
-def df_preprocessing(df, classifier, target):
+def df_preprocessing(df, classifier, target, apply_dimension_reduction):
     scaler = None
     if classifier == Classifier.LogisticRegression:
         scaler = MinMaxScaler()
@@ -77,12 +85,27 @@ def df_preprocessing(df, classifier, target):
         scaler = StandardScaler()
         x = scaler.fit_transform(x)
     else:
-        x = df[feature_cols]
+        if apply_dimension_reduction:
+            x = df[reduced_feature].values
+        else: 
+            x = df[feature_cols]
+    
     if target == Classification_target.Label: 
         y = df.Label # Target variable
     elif target == Classification_target.Attack_cat:
         y = df.attack_cat
-    return train_test_split(x, y, test_size=1 / 5, random_state=0)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1 / 5, random_state=0)
+
+    if classifier == Classifier.KNearestNeighbors and apply_dimension_reduction:
+        x_train, x_test = apply_PCA(x_train, x_test)
+    
+    return x_train, x_test, y_train, y_test
+
+def df_postprocessing(x_train, y_train):
+    sm = SMOTE(random_state = 1, k_neighbors = 5)
+    x_train, y_train = sm.fit_resample(x_train, y_train)
+    unique, counts = np.unique(y_train, return_counts=True)
+    print(np.asarray((unique,counts)).T)
 
 def classify(x_train, x_test, y_train, classifier):
     classifier.fit(x_train, y_train)
@@ -90,12 +113,14 @@ def classify(x_train, x_test, y_train, classifier):
     return y_predict
 
 def main(argv):
+    feature_reduction = True
+    data_balance = True
     optional_load_model_name = "" 
     parser = argparse.ArgumentParser()
     parser.add_argument('filename')  
     parser.add_argument('classification_method')   
     parser.add_argument('task')    
-    parse.add_argument('optional_load_model_name')
+    parser.add_argument('--optional_load_model_name',default="", required=False)
     args = parser.parse_args()
     filename = args.filename
     classification_method = args.classification_method
@@ -105,7 +130,7 @@ def main(argv):
     classifier = None
     classifier_enum = None
     
-    if optional_load_model_name != None or optional_load_model_name != "" :
+    if optional_load_model_name != "" :
          classifier = pickle.load(open(optional_load_model_name, 'rb')) 
 
     if classification_method == "RandomForestClassifier":
@@ -126,10 +151,14 @@ def main(argv):
 
     start_time = time.time()
     df, uniques = create_model(filename)
-    x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target)
+    x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
+    if data_balance:
+        df_postprocessing(x_train, y_train)
     y_predict = classify(x_train, x_test, y_train, classifier)
-    uniques = uniques.insert(0, ['None'])
-    print(classification_report(y_test, y_predict))
+    if classification_target == Classification_target.Label:
+        print(classification_report(y_test, y_predict))
+    else:
+        print(classification_report(y_test, y_predict, target_names=uniques))
     y_predict = execution_time = time.time() - start_time
     print(f'Execution took {round(execution_time, 2)} seconds')
 

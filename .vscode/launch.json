@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["UNSW-NB15-BALANCED-TRAIN.csv", "RandomForestClassifier", "Label"]
+            "args": ["UNSW-NB15-BALANCED-TRAIN.csv", "KNearestNeighbors", "attack_cat"]
         }
     ]
        
