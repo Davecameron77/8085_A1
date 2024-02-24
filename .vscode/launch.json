@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["UNSW-NB15-BALANCED-TRAIN.csv", "KNearestNeighbors", "attack_cat"]
+            "args": ["UNSW-NB15-BALANCED-TRAIN.csv", "LogisticRegression", "attack_cat", "Model_LR_atk"]
         }
     ]
        

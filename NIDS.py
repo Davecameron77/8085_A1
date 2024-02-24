@@ -105,7 +105,6 @@ def df_postprocessing(x_train, y_train):
     sm = SMOTE(random_state = 1, k_neighbors = 5)
     x_train, y_train = sm.fit_resample(x_train, y_train)
     unique, counts = np.unique(y_train, return_counts=True)
-    print(np.asarray((unique,counts)).T)
 
 def classify(x_train, x_test, y_train, classifier):
     classifier.fit(x_train, y_train)
@@ -120,17 +119,15 @@ def main(argv):
     parser.add_argument('filename')  
     parser.add_argument('classification_method')   
     parser.add_argument('task')    
-    parser.add_argument('--optional_load_model_name',default="", required=False)
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
     filename = args.filename
     classification_method = args.classification_method
     task = args.task
-    optional_load_model_name = args.optional_load_model_name
 
     classifier = None
     classifier_enum = None
-    
-    if optional_load_model_name != "" :
+    if len(unknown) == 1:
+         optional_load_model_name = unknown[0]
          classifier = pickle.load(open(optional_load_model_name, 'rb')) 
 
     if classification_method == "RandomForestClassifier":
