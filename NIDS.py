@@ -134,7 +134,7 @@ def main(argv):
          classifier = pickle.load(open(optional_load_model_name, 'rb'))
          model_loaded = True 
 
-    elif classification_method == "RandomForestClassifier":
+    if classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', max_depth=24, min_samples_split=10,
                                             min_samples_leaf=2, max_features=None, bootstrap=True, n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
