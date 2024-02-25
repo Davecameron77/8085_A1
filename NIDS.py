@@ -18,6 +18,8 @@ from sklearn.preprocessing import MinMaxScaler
 import argparse
 from imblearn.over_sampling import SMOTE
 
+PRINT_TRAINING_SCORE = True
+
 class Classification_target(Enum):
     Label = 1
     Attack_cat = 2
@@ -40,6 +42,10 @@ feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state', 'dur',
 rfc_features = ['dur', 'sbytes', 'smeansz', 'trans_depth', 'Sjit', 'dstip', 
                 'service', 'Sload', 'Stime', 'Ltime', 'synack', 'proto', 
                 'tcprtt', 'state', 'ackdat', 'dttl', 'ct_state_ttl', 'sttl']
+rfc_correlated_features = ['sttl', 'ct_state_ttl', 'dttl', 'ackdat', 'state', 
+                           'tcprtt', 'proto']
+rfc_important_features = ['dsport', 'ct_srv_dst', 'dbytes', 'sbytes', 'dmeansz', 
+                          'smeansz', 'sport', 'Dpkts']
 
 Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 
                    'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 
@@ -73,7 +79,6 @@ def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     codes, _ = pd.factorize(df['attack_cat'])
     df['attack_cat'] = codes
 
-
     return df
 
 def apply_PCA(train,test):
@@ -93,7 +98,8 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_vali
         scaler = StandardScaler()
         x = scaler.fit_transform(x)
     elif classifier == Classifier.RandomForestClassifier:
-        x = df[rfc_features]
+        x = df[rfc_correlated_features]
+        x = pd.concat([x, df[rfc_important_features]], axis=1)
     else:
         if apply_dimension_reduction:
             x = df[reduced_feature]
@@ -124,7 +130,7 @@ def classify(x_train, x_test, y_train, classifier, model_loaded):
     return y_predict
 
 def validation(filename, classifier_enum, classifier, target, apply_dimension_reduction):
-    df, _ = create_model(filename)
+    df = create_model(filename)
     x, y = df_preprocessing(df, classifier_enum, target, apply_dimension_reduction, for_validation=True)
     if classifier_enum == Classifier.KNearestNeighbors:
         pca = PCA(n_components=10, svd_solver='full')
@@ -133,18 +139,17 @@ def validation(filename, classifier_enum, classifier, target, apply_dimension_re
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.4, random_state=0) 
     return classifier.predict(x_test), y_test
     
-
 def print_result(y_test, y_predict, classification_target):
-    if classification_target == Classification_target.Label:
-        print(classification_report(y_test, y_predict))
-    else:
-        print(classification_report(y_test, y_predict, target_names=label))
+    if PRINT_TRAINING_SCORE:
+        if classification_target == Classification_target.Label:
+            print(classification_report(y_test, y_predict))
+        else:
+            print(classification_report(y_test, y_predict, target_names=label))
 
 def main():
     feature_reduction = True 
     data_balance = True
     model_loaded = False
-    is_validation_required = False
     optional_load_model_name = "" 
     parser = argparse.ArgumentParser()
     parser.add_argument('heldout_filename')  
@@ -159,6 +164,7 @@ def main():
     classifier = None
     classifier_enum = None
     
+    # Set classifier
     if classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, 
                                             criterion='entropy', max_depth=24, 
@@ -175,33 +181,39 @@ def main():
         classifier = KNeighborsClassifier() 
         classifier_enum = Classifier.KNearestNeighbors 
 
+    # Set target
     classification_target = None 
     if task.lower() == 'label':
         classification_target = Classification_target.Label
     else:
         classification_target = Classification_target.Attack_cat
     
+    # Load model in case of Logistic Regression
     if classifier_enum == Classifier.LogisticRegression :
          optional_load_model_name = unknown[0]
          classifier = pickle.load(open(optional_load_model_name, 'rb'))
     else:
         filename = unknown[0] 
 
+    # Execute
     start_time = time.time()
     df = create_model(filename)
     x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
     if data_balance:
         df_postprocessing(x_train, y_train)
+    
     #training
     print(x_test.shape)
     y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
     print(classifier.classes_)
     execution_time = time.time() - start_time
     print_result(y_test, y_predict, classification_target)
+    
     #validate
-    if is_validation_required:
-        y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
-        print_result(y_test, y_predict, classification_target)
+    y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
+    print_result(y_test, y_predict, classification_target)
+        
+
+
 if __name__ == "__main__":
     main()
-
