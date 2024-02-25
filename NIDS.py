@@ -38,19 +38,27 @@ feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state', 'dur',
                 'ct_flw_http_mthd', 'is_ftp_login', 'ct_ftp_cmd', 'ct_srv_src', 
                 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm', 'ct_src_dport_ltm', 
                 'ct_dst_sport_ltm', 'ct_dst_src_ltm']
-
-rfc_features = ['dur', 'sbytes', 'smeansz', 'trans_depth', 'Sjit', 'dstip', 
-                'service', 'Sload', 'Stime', 'Ltime', 'synack', 'proto', 
-                'tcprtt', 'state', 'ackdat', 'dttl', 'ct_state_ttl', 'sttl']
 rfc_correlated_features = ['sttl', 'ct_state_ttl', 'dttl', 'ackdat', 'state', 
                            'tcprtt', 'proto']
 rfc_important_features = ['dsport', 'ct_srv_dst', 'dbytes', 'sbytes', 'dmeansz', 
                           'smeansz', 'sport', 'Dpkts']
+rfc_categorical_features = ['srcip', 'dstip']
 
 Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 
                    'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 
                    'ct_state_ttl', 'ct_srv_dst']
 label = ['None', 'Generic', 'Fuzzers', 'Exploits', 'Dos', 'Reconnaissance', 'Analysis', 'Shellcode', 'Backdoors', 'Worms']
+
+#region Dave Special
+
+# @dave special
+def analyze_feature_correlation():
+    return
+# @dave special
+def hyperparameter_tuning():
+    return
+
+#endregion
 
 def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     print(f'Loading data from {filename}')
@@ -100,9 +108,10 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_vali
     elif classifier == Classifier.RandomForestClassifier:
         x = df[rfc_correlated_features]
         x = pd.concat([x, df[rfc_important_features]], axis=1)
+        x = pd.concat([x, df[rfc_categorical_features]], axis=1)
     else:
         if apply_dimension_reduction:
-            x = df[reduced_feature]
+            x = df[Feat15]
         else: 
             x = df[feature_cols]
     
@@ -203,17 +212,20 @@ def main():
         df_postprocessing(x_train, y_train)
     
     #training
-    print(x_test.shape)
+    # print(x_test.shape)
     y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
-    print(classifier.classes_)
-    execution_time = time.time() - start_time
+    # print(classifier.classes_)
     print_result(y_test, y_predict, classification_target)
+    execution_time = time.time() - start_time
+    if PRINT_TRAINING_SCORE:
+        print(f'Training completed in {execution_time} seconds')
     
     #validate
     y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
     print_result(y_test, y_predict, classification_target)
+    validation_time = time.time() - start_time - execution_time
+    print(f'Validation completed in {validation_time} seconds')
+
         
-
-
 if __name__ == "__main__":
     main()
