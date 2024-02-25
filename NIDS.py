@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, precision_score
 from sklearn import metrics
 import pickle
 from sklearn.preprocessing import MinMaxScaler
@@ -41,15 +41,12 @@ rfc_features = ['dur', 'sbytes', 'smeansz', 'trans_depth', 'Sjit', 'dstip',
                 'service', 'Sload', 'Stime', 'Ltime', 'synack', 'proto', 
                 'tcprtt', 'state', 'ackdat', 'dttl', 'ct_state_ttl', 'sttl']
 
-reduced_feature = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 
-                   'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 
-                   'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
 Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 
                    'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 
                    'ct_state_ttl', 'ct_srv_dst']
+label = ['None', 'Generic', 'Fuzzers', 'Exploits', 'Dos', 'Reconnaissance', 'Analysis', 'Shellcode', 'Backdoors', 'Worms']
 
-def create_model(filename):
-
+def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
     print("Dataset loaded\n")
@@ -73,11 +70,11 @@ def create_model(filename):
     df['attack_cat'] = df['attack_cat'].replace('Backdoor', 'Backdoors')
     df['attack_cat'] = df['attack_cat'].replace('nan', 'Benign')
     df['Label'] = df['Label'].astype(bool)
-    codes, uniques = pd.factorize(df['attack_cat'])
+    codes, _ = pd.factorize(df['attack_cat'])
     df['attack_cat'] = codes
 
 
-    return df, uniques 
+    return df
 
 def apply_PCA(train,test):
     pca = PCA(n_components=10, svd_solver='full')
@@ -86,7 +83,7 @@ def apply_PCA(train,test):
     test = pca.transform(test)
     return train, test
 
-def df_preprocessing(df, classifier, target, apply_dimension_reduction):
+def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_validation=False):
     scaler = None
     if classifier == Classifier.LogisticRegression:
         scaler = MinMaxScaler()
@@ -107,8 +104,9 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
         y = df.Label # Target variable
     elif target == Classification_target.Attack_cat:
         y = df.attack_cat
+    if for_validation:
+        return x, y
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
-
     if classifier == Classifier.KNearestNeighbors and apply_dimension_reduction:
         x_train, x_test = apply_PCA(x_train, x_test)
     
@@ -117,7 +115,7 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction):
 def df_postprocessing(x_train, y_train):
     sm = SMOTE(random_state = 1, k_neighbors = 5)
     x_train, y_train = sm.fit_resample(x_train, y_train)
-    unique, counts = np.unique(y_train, return_counts=True)
+    return np.unique(y_train, return_counts=True)
 
 def classify(x_train, x_test, y_train, classifier, model_loaded):
     if not model_loaded:
@@ -125,27 +123,42 @@ def classify(x_train, x_test, y_train, classifier, model_loaded):
     y_predict = classifier.predict(x_test)
     return y_predict
 
-def main(argv):
-    feature_reduction = True
+def validation(filename, classifier_enum, classifier, target, apply_dimension_reduction):
+    df, _ = create_model(filename)
+    x, y = df_preprocessing(df, classifier_enum, target, apply_dimension_reduction, for_validation=True)
+    if classifier_enum == Classifier.KNearestNeighbors:
+        pca = PCA(n_components=10, svd_solver='full')
+        pca.fit(x)
+        x = pca.transform(x) 
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.4, random_state=0) 
+    return classifier.predict(x_test), y_test
+    
+
+def print_result(y_test, y_predict, classification_target):
+    if classification_target == Classification_target.Label:
+        print(classification_report(y_test, y_predict))
+    else:
+        print(classification_report(y_test, y_predict, target_names=label))
+
+def main():
+    feature_reduction = True 
     data_balance = True
     model_loaded = False
+    is_validation_required = False
     optional_load_model_name = "" 
     parser = argparse.ArgumentParser()
-    parser.add_argument('filename')  
+    parser.add_argument('heldout_filename')  
     parser.add_argument('classification_method')   
     parser.add_argument('task')    
     args, unknown = parser.parse_known_args()
-    filename = args.filename
+    heldout_filename = args.heldout_filename
+    filename = ""
     classification_method = args.classification_method
     task = args.task
 
     classifier = None
     classifier_enum = None
-    if len(unknown) == 1:
-         optional_load_model_name = unknown[0]
-         classifier = pickle.load(open(optional_load_model_name, 'rb'))
-         model_loaded = True 
-
+    
     if classification_method == "RandomForestClassifier":
         classifier = RandomForestClassifier(n_estimators=1000, 
                                             criterion='entropy', max_depth=24, 
@@ -155,8 +168,9 @@ def main(argv):
                                             n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
     elif classification_method == "LogisticRegression":
-        LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=10000)
+        classifier = LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=10000)
         classifier_enum = Classifier.LogisticRegression 
+        model_loaded = True 
     elif classification_method == "KNearestNeighbors":
         classifier = KNeighborsClassifier() 
         classifier_enum = Classifier.KNearestNeighbors 
@@ -166,21 +180,28 @@ def main(argv):
         classification_target = Classification_target.Label
     else:
         classification_target = Classification_target.Attack_cat
+    
+    if classifier_enum == Classifier.LogisticRegression :
+         optional_load_model_name = unknown[0]
+         classifier = pickle.load(open(optional_load_model_name, 'rb'))
+    else:
+        filename = unknown[0] 
 
     start_time = time.time()
-    df, uniques = create_model(filename)
+    df = create_model(filename)
     x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
     if data_balance:
         df_postprocessing(x_train, y_train)
+    #training
+    print(x_test.shape)
     y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
-    if classification_target == Classification_target.Label:
-        print(classification_report(y_test, y_predict))
-    else:
-        print(classification_report(y_test, y_predict, target_names=uniques))
-    y_predict = execution_time = time.time() - start_time
-    print(f'Execution took {round(execution_time, 2)} seconds')
-
-
+    print(classifier.classes_)
+    execution_time = time.time() - start_time
+    print_result(y_test, y_predict, classification_target)
+    #validate
+    if is_validation_required:
+        y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
+        print_result(y_test, y_predict, classification_target)
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
 

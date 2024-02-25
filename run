@@ -1,0 +1,1 @@
+python3 NIDS.py UNSW-NB15_3.csv KNearestNeighbors attack_cat UNSW-NB15-BALANCED-TRAIN.csv
