@@ -23,7 +23,7 @@ import seaborn as sns
 import plotly.graph_objects as go
 import plotly.express as px
 
-PRINT_TRAINING_SCORE = True
+PRINT_TRAINING_SCORE = False
 
 class Classification_target(Enum):
     Label = 1
