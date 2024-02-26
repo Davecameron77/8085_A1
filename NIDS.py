@@ -78,17 +78,7 @@ def apply_logistic_regression(X_train, y_train, X_test, y_test):
     log_reg.fit(X_train, y_train)
     y_pred = log_reg.predict(X_test)
     return y_test, y_pred
-
-def apply_PCA(train,test,y, is_pca_applied):
-    pca = PCA(n_components=10, svd_solver='full')
-    pca.fit(train)
-    print(pca.explained_variance_ratio_)
-    print(pca.singular_values_)
-    train = pca.transform(train) 
-    test = pca.transform(test)
-    is_pca_applied = True
-    return train, test, pca, is_pca_applied
-
+    
 def draw_heatmap(pca):
     df_comp = pd.DataFrame(pca.components_, columns=feature_cols)
     plt.figure(figsize=(12, 6))
@@ -119,10 +109,8 @@ def draw_diagram(pca):
 
 
     fig.show()
-
-   
-
 #endregion
+
 def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
