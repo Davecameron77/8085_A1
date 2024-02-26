@@ -14,11 +14,15 @@ import pickle
 
 datafile = 'UNSW-NB15-BALANCED-TRAIN.csv'
 
+Feat20 = ['sport', 'dsport', 'proto', 'state', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload',
+'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'tcprtt', 'ackdat', 'ct_state_ttl', 'ct_srv_src', 'ct_srv_dst', 'ct_src_dport_ltm']
 Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+Feat10 = ['sport', 'dsport', 'sbytes', 'sttl', 'dttl', 'service', 'Dload', 'smeansz', 'dmeansz', 'ct_state_ttl']
+Feat5 = ['sport', 'dsport', 'sbytes', 'sttl', 'ct_state_ttl']
 
 tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
-def preprocessing(datafile):
+def LR_preprocessing(datafile):
 
     print("Reading data...")
     dataset = pd.read_csv(datafile, low_memory=False)
@@ -48,7 +52,7 @@ def preprocessing(datafile):
     return dataset
 
 
-def sampling(X,y,samples = -1):
+def LR_sampling(X,y,samples = -1):
     if samples > 0:
         sampDict = {0:samples, 1:samples}
         us = RandomUnderSampler(sampling_strategy=sampDict)
@@ -61,7 +65,7 @@ def sampling(X,y,samples = -1):
     return X_train, y_train
 
 
-def predict(X_train, y_train, X_test, y_test, show_con):
+def LR_predict(X_train, y_train, X_test, y_test, show_con):
 
     tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
@@ -91,16 +95,16 @@ def predict(X_train, y_train, X_test, y_test, show_con):
         plt.show()
 
 
-def FeatureSelection(datafile, num_features):
+def LR_FeatureSelection(datafile, num_features):
 
-    dataset = preprocessing(datafile)
+    dataset = LR_preprocessing(datafile)
 
     X = dataset.iloc[:, :-2].values
     y = dataset.iloc[:, -2].values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
 
-    X_train, y_train = sampling(X_train, y_train)
+    X_train, y_train = LR_sampling(X_train, y_train)
 
     clf = RandomForestClassifier(max_depth=10)
     sel = RFE(clf, n_features_to_select=num_features , step=10)
@@ -122,23 +126,23 @@ def FeatureSelection(datafile, num_features):
     exit()
 
 
-def classifyLab(datafile, show_con = False):
+def LR_classifyLab(datafile, show_con = False):
 
-    dataset = preprocessing(datafile)
+    dataset = LR_preprocessing(datafile)
 
     X = dataset[Feat15].values
     y = dataset.iloc[:, -1].values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
-    X_train, y_train = sampling(X_train, y_train)
+    X_train, y_train = LR_sampling(X_train, y_train)
 
-    predict(X_train, y_train, X_test, y_test, show_con)
+    LR_predict(X_train, y_train, X_test, y_test, show_con)
 
 
-def classifyAtk(datafile, show_con = False, sample_bool = True, samples = -1):
+def LR_classifyAtk(datafile, show_con = False, sample_bool = True, samples = -1):
 
-    dataset = preprocessing(datafile)
+    dataset = LR_preprocessing(datafile)
 
     X = dataset[Feat15].values
     y = dataset.iloc[:, -2].values
@@ -146,21 +150,21 @@ def classifyAtk(datafile, show_con = False, sample_bool = True, samples = -1):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
 
     if sample_bool:
-        X_train, y_train = sampling(X_train, y_train, samples)
+        X_train, y_train = LR_sampling(X_train, y_train, samples)
 
-    predict(X_train, y_train, X_test, y_test, show_con)
+    LR_predict(X_train, y_train, X_test, y_test, show_con)
 
 
-def gridSearch(datafile):
+def LR_gridSearch(datafile):
 
-    dataset = preprocessing(datafile)
+    dataset = LR_preprocessing(datafile)
 
     X = dataset[Feat15].values
     y = dataset.iloc[:, -2].values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
-    X_train, y_train = sampling(X_train, y_train)
+    X_train, y_train = LR_sampling(X_train, y_train)
 
     clf = LogisticRegression()
 
@@ -192,15 +196,15 @@ def gridSearch(datafile):
   
 
 def LR_Sampling_Test(datafile):
-    #classifyAtk(datafile, sample_bool= False)
-    #classifyAtk(datafile)
-    classifyAtk(datafile, 100000)
-    classifyAtk(datafile, 50000)
+    LR_classifyAtk(datafile, sample_bool= False)
+    LR_classifyAtk(datafile)
+    LR_classifyAtk(datafile, 100000)
+    LR_classifyAtk(datafile, 50000)
 
 def main():
-    #classifyAtk(datafile)
-    #LR_Sampling_Test(datafile)
-    FeatureSelection(datafile, 5)
+    LR_classifyAtk(datafile)
+    LR_Sampling_Test(datafile)
+    LR_FeatureSelection(datafile, 5)
     
 
 
