@@ -12,6 +12,11 @@ from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, classification_report
 import pickle
 
+datafile = 'UNSW-NB15-BALANCED-TRAIN.csv'
+
+Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+
+tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
 def preprocessing(datafile):
 
@@ -43,10 +48,11 @@ def preprocessing(datafile):
     return dataset
 
 
-def resampling(X,y):
-    sampDict = {0:30000, 1:30000}
-    us = RandomUnderSampler(sampling_strategy=sampDict)
-    X_train, y_train = us.fit_resample(X, y)
+def sampling(X,y,samples = -1):
+    if samples > 0:
+        sampDict = {0:samples, 1:samples}
+        us = RandomUnderSampler(sampling_strategy=sampDict)
+        X_train, y_train = us.fit_resample(X, y)
 
     print("SMOTEin'...")
     sm = SMOTE(random_state = 1, k_neighbors = 5)
@@ -59,7 +65,7 @@ def predict(X_train, y_train, X_test, y_test, show_con):
 
     tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
-    t = time.process_time()
+    t = time.time()
 
     clf = LogisticRegression(solver='saga', penalty='l1', n_jobs=-1, max_iter=100)
 
@@ -70,7 +76,7 @@ def predict(X_train, y_train, X_test, y_test, show_con):
     y_pred = clf.predict(X_test)
 
     print("////////////////////////////////////////////////////////////////////////////////")
-    et = time.process_time() - t
+    et = time.time() - t
     print("elapsed time: ", et)
 
     print("Accuracy is : {:.2f}%\n".format(accuracy_score(y_test, y_pred) * 100))
@@ -85,7 +91,7 @@ def predict(X_train, y_train, X_test, y_test, show_con):
         plt.show()
 
 
-def FeatureSelection(datafile, show_con = False):
+def FeatureSelection(datafile, num_features):
 
     dataset = preprocessing(datafile)
 
@@ -94,10 +100,10 @@ def FeatureSelection(datafile, show_con = False):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
 
-    X_train, y_train = resampling(X_train, y_train)
+    X_train, y_train = sampling(X_train, y_train)
 
     clf = RandomForestClassifier(max_depth=10)
-    sel = RFE(clf, n_features_to_select=15 , step=10)
+    sel = RFE(clf, n_features_to_select=num_features , step=10)
 
     t = time.process_time()
     sel = sel.fit(X_train, y_train)
@@ -118,8 +124,6 @@ def FeatureSelection(datafile, show_con = False):
 
 def classifyLab(datafile, show_con = False):
 
-    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-
     dataset = preprocessing(datafile)
 
     X = dataset[Feat15].values
@@ -127,14 +131,12 @@ def classifyLab(datafile, show_con = False):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
-    X_train, y_train = resampling(X_train, y_train)
+    X_train, y_train = sampling(X_train, y_train)
 
     predict(X_train, y_train, X_test, y_test, show_con)
 
 
-def classifyAtk(datafile, show_con = False):
-
-    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
+def classifyAtk(datafile, show_con = False, sample_bool = True, samples = -1):
 
     dataset = preprocessing(datafile)
 
@@ -142,15 +144,14 @@ def classifyAtk(datafile, show_con = False):
     y = dataset.iloc[:, -2].values
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
-    
-    X_train, y_train = resampling(X_train, y_train)
+
+    if sample_bool:
+        X_train, y_train = sampling(X_train, y_train, samples)
 
     predict(X_train, y_train, X_test, y_test, show_con)
 
 
 def gridSearch(datafile):
-    Feat15 = ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 'service', 'Sload', 'Dload', 'Dpkts', 'smeansz', 'dmeansz', 'ct_state_ttl', 'ct_srv_dst']
-    tl= ['Benign', 'Generic', 'Fuzzers', 'Exploits', 'DOS', 'Recon', 'Backdoors', 'Analysis', 'Shellcode', 'Worms', ]
 
     dataset = preprocessing(datafile)
 
@@ -159,13 +160,13 @@ def gridSearch(datafile):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1/5, random_state=0)
     
-    X_train, y_train = resampling(X_train, y_train)
+    X_train, y_train = sampling(X_train, y_train)
 
     clf = LogisticRegression()
 
     print("starting grid...")
     params = [{'solver': ['lbfgs', 'liblinear', 'newton-cg', 'newton-cholesky' 'sag', 'saga' ],
-               'C': [1.0, 3.0, 5.0],
+               'C': [0.1, 1.0, 3.0],
                'max_iter': [100, 1000, 10000]}]
     
     grid = GridSearchCV(estimator=clf, param_grid=params, scoring='f1_macro', n_jobs=-1, verbose=3)
@@ -190,10 +191,17 @@ def gridSearch(datafile):
     print(classification_report(y_test, pred, target_names=tl))
   
 
+def LR_Sampling_Test(datafile):
+    #classifyAtk(datafile, sample_bool= False)
+    #classifyAtk(datafile)
+    classifyAtk(datafile, 100000)
+    classifyAtk(datafile, 50000)
+
 def main():
-    datafile = 'UNSW-NB15-BALANCED-TRAIN.csv'
-    classifyAtk(datafile)
-    #gridSearch(datafile)
+    #classifyAtk(datafile)
+    #LR_Sampling_Test(datafile)
+    FeatureSelection(datafile, 5)
+    
 
 
 if __name__ == "__main__":

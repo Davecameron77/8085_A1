@@ -192,12 +192,13 @@ def classify(x_train, x_test, y_train, classifier, model_loaded):
 def validation(filename, classifier_enum, classifier, target, apply_dimension_reduction):
     df = create_model(filename)
     x, y = df_preprocessing(df, classifier_enum, target, apply_dimension_reduction, for_validation=True)
+    df_postprocessing(x,y)
     if classifier_enum == Classifier.KNearestNeighbors:
         pca = PCA(n_components=10, svd_solver='full')
         pca.fit(x)
         x = pca.transform(x) 
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.4, random_state=0) 
-    return classifier.predict(x_test), y_test
+
+    return classifier.predict(x), y
     
 def print_result(y_test, y_predict, classification_target):
     if PRINT_TRAINING_SCORE:
@@ -214,7 +215,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('heldout_filename')  
     parser.add_argument('classification_method')   
-    parser.add_argument('task')    
+    parser.add_argument('task')   
+    parser.add_argument('-m', '--model')
+    parser.add_argument('-t', '--training')
     args, unknown = parser.parse_known_args()
     heldout_filename = args.heldout_filename
     filename = ""
@@ -234,7 +237,7 @@ def main():
                                             n_jobs=-1)
         classifier_enum = Classifier.RandomForestClassifier 
     elif classification_method == "LogisticRegression":
-        classifier = LogisticRegression(solver='saga', penalty='l1', C=5.0, max_iter=10000)
+        classifier = LogisticRegression(solver='saga', penalty='l1', C=3.0, max_iter=1000)
         classifier_enum = Classifier.LogisticRegression 
         model_loaded = True 
     elif classification_method == "KNearestNeighbors":
@@ -249,32 +252,38 @@ def main():
         classification_target = Classification_target.Attack_cat
     
     # Load model in case of Logistic Regression
-    if classifier_enum == Classifier.LogisticRegression :
-         optional_load_model_name = unknown[0]
+    if args.model:
+         optional_load_model_name = args.model
          classifier = pickle.load(open(optional_load_model_name, 'rb'))
+         model_loaded = True
+    elif args.training:
+        filename = args.training 
     else:
-        filename = unknown[0] 
-
-    # Execute
+        print("Invalid Input! Proper use is NIDS.py <Held-out test file> <classification method> <task>")
+        print("4th arg must be either a model to load with -m or data to train from with -t")
+        exit()
     start_time = time.time()
-    df = create_model(filename)
-    x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
-    if data_balance:
-        df_postprocessing(x_train, y_train)
+    if not model_loaded:
+        # Execute
+        df = create_model(filename)
+        x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
+        if data_balance:
+            df_postprocessing(x_train, y_train)
+        
+        #training
+        # print(x_test.shape)
+        y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
+        # print(classifier.classes_)
+        print_result(y_test, y_predict, classification_target)
+        execution_time = time.time() - start_time
+        if PRINT_TRAINING_SCORE:
+            print(f'Training completed in {execution_time} seconds')
     
-    #training
-    # print(x_test.shape)
-    y_predict = classify(x_train, x_test, y_train, classifier, model_loaded)
-    # print(classifier.classes_)
-    print_result(y_test, y_predict, classification_target)
-    execution_time = time.time() - start_time
-    if PRINT_TRAINING_SCORE:
-        print(f'Training completed in {execution_time} seconds')
-    
+    start_time = time.time()
     #validate
     y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
     print_result(y_test, y_predict, classification_target)
-    validation_time = time.time() - start_time - execution_time
+    validation_time = time.time() - start_time
     print(f'Validation completed in {validation_time} seconds')
 
         
