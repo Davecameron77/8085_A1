@@ -155,7 +155,7 @@ def hyperparameter_tuning(df):
     # 3 - Randomized grid search
 
     # Grid parameters
-    n_estimators = [int(x) for x in np.linspace(start=100, stop=1000, num=10)]
+    n_estimators = [int(x) for x in np.linspace(start=20, stop=300, num=10)]
     max_features = ['log2', 'sqrt', None]
     max_depth = [int(x) for x in np.linspace(10, 110, num=11)]
     max_depth.append(None)
@@ -196,10 +196,10 @@ def hyperparameter_tuning(df):
 
     param_grid = {
         'bootstrap': [True],
-        'max_depth': [5, 10, 15],
+        'max_depth': [5, 20, 30, 40],
         'min_samples_leaf': [1, 2, 3],
-        'min_samples_split': [1, 2, 3],
-        'n_estimators': [100, 200, 300, 1000]
+        'min_samples_split': [2, 5, 8],
+        'n_estimators': [30, 100, 200]
     }
 
     # Instantiate the grid search model
@@ -609,9 +609,9 @@ def main():
     
     # Set classifier
     if classification_method == "RandomForestClassifier":
-        classifier = RandomForestClassifier(n_estimators=1000, 
-                                            criterion='entropy', max_depth=24, 
-                                            min_samples_split=10,
+        classifier = RandomForestClassifier(n_estimators=10, 
+                                            criterion='entropy', max_depth=30, 
+                                            min_samples_split=2,
                                             min_samples_leaf=2, 
                                             max_features=None, bootstrap=True, 
                                             n_jobs=-1)
