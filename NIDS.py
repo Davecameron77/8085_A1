@@ -20,6 +20,8 @@ import argparse
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
 
 PRINT_TRAINING_SCORE = True
 
@@ -230,7 +232,7 @@ def k_fold_cross_validation(clf, x, y):
 
 #region Raymond 
 def apply_knn(X_train, y_train, X_test, y_test):
-    knn = KNeighborsClassifier(algorithm='brute')
+    knn = KNeighborsClassifier(weights='distance',algorithm='kd_tree')
     knn.fit(X_train, y_train)
     y_predict = knn.predict(X_test)
     return y_test, y_predict
@@ -621,7 +623,7 @@ def main():
         classifier_enum = Classifier.LogisticRegression 
         model_loaded = True 
     elif classification_method == "KNearestNeighbors":
-        classifier = KNeighborsClassifier() 
+        classifier =  KNeighborsClassifier(weights='distance',algorithm='kd_tree')
         classifier_enum = Classifier.KNearestNeighbors 
 
     # Set target
