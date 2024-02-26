@@ -60,6 +60,69 @@ def hyperparameter_tuning():
 
 #endregion
 
+#region Raymond 
+def apply_knn(X_train, y_train, X_test, y_test):
+    knn = KNeighborsClassifier(algorithm='brute')
+    knn.fit(X_train, y_train)
+    y_predict = knn.predict(X_test)
+    return y_test, y_predict
+
+def apply_d_tree(X_train, y_train, X_test, y_test):
+    clf = DecisionTreeClassifier(criterion='entropy')
+    clf = clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    return y_test, y_pred
+
+def apply_logistic_regression(X_train, y_train, X_test, y_test):
+    log_reg = LogisticRegression(max_iter=10000)
+    log_reg.fit(X_train, y_train)
+    y_pred = log_reg.predict(X_test)
+    return y_test, y_pred
+
+def apply_PCA(train,test,y, is_pca_applied):
+    pca = PCA(n_components=10, svd_solver='full')
+    pca.fit(train)
+    print(pca.explained_variance_ratio_)
+    print(pca.singular_values_)
+    train = pca.transform(train) 
+    test = pca.transform(test)
+    is_pca_applied = True
+    return train, test, pca, is_pca_applied
+
+def draw_heatmap(pca):
+    df_comp = pd.DataFrame(pca.components_, columns=feature_cols)
+    plt.figure(figsize=(12, 6))
+    sns.heatmap(df_comp, cmap="Blues")
+    plt.show()
+
+def draw_diagram(pca):
+    explained_variance = pca.explained_variance_ratio_
+    cumulative_variance = np.cumsum(np.round(explained_variance, decimals=3))
+    pc_df = pd.DataFrame(['PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'], columns=['PC'])
+    explained_variance_df = pd.DataFrame(explained_variance, columns=['Explained Variance'])
+    cumulative_variance_df = pd.DataFrame(cumulative_variance, columns=['Cumulative Variance'])
+    cumulative_variance = np.cumsum(np.round(pca.explained_variance_, decimals=3))
+    df_explained_variance = pd.concat([pc_df, explained_variance_df, cumulative_variance_df], axis=1)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df_explained_variance['PC'],
+            y=df_explained_variance['Cumulative Variance'],
+            marker=dict(size=15, color="LightSeaGreen"),
+        ))
+    fig.add_trace(
+        go.Bar(
+            x=df_explained_variance['PC'],
+            y=df_explained_variance['Explained Variance'],
+            marker=dict(color="RoyalBlue")
+        ))
+
+
+    fig.show()
+
+   
+
+#endregion
 def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
