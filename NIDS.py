@@ -542,7 +542,7 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_vali
         y = df.attack_cat
     if for_validation:
         return x, y
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=0)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=1/5, random_state=21)
     if classifier == Classifier.KNearestNeighbors and apply_dimension_reduction:
         x_train, x_test = apply_PCA(x_train, x_test)
     
@@ -563,6 +563,8 @@ def classify(x_train, x_test, y_train, classifier, model_loaded):
     if not model_loaded:
         classifier.fit(x_train, y_train)
     y_predict = classifier.predict(x_test)
+    filename = 'Model_KNeighborsClassifier_label.pkl'
+    pickle.dump(classifier, open(filename, 'wb'))
     return y_predict
 
 #

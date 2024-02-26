@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             // "args": ["UNSW-NB15-BALANCED-TRAIN.csv", "KNearestNeighbors", "attack_cat", "Model_LR_atk"]
-            "args": ["held_out_test.csv", "KNearestNeighbors", "attack_cat", "-t", "UNSW-NB15-BALANCED-TRAIN.csv"] // use fourth param for input name, first for heldout test filename
+            "args": ["held_out_test.csv", "KNearestNeighbors", "Label", "-t", "UNSW-NB15-BALANCED-TRAIN.csv"] // use fourth param for input name, first for heldout test filename
         }
 
     ]
