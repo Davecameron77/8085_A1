@@ -114,7 +114,7 @@ def most_important_features(df):
                                         min_samples_leaf=2, max_features=None, 
                                         bootstrap=True, n_jobs=-1)
     
-    frame = pd.DataFrame({'Feature': clf.feature_names_in_, 'Importance': classifier.feature_importances_})
+    frame = pd.DataFrame({'Feature': classifier.feature_names_in_, 'Importance': classifier.feature_importances_})
     return frame.sort_values(by='Importance', ascending=False)['Feature'].head(10).values.tolist()
 
 #
