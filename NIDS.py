@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-from itertools import count
 from enum import Enum
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import sys
 import time
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV, GridSearchCV
+from sklearn.model_selection import cross_val_score, train_test_split, RandomizedSearchCV, GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, precision_score, accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.feature_selection import RFE
-from sklearn import metrics
 import pickle
 from sklearn.preprocessing import MinMaxScaler
 import argparse
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
+import seaborn as sns
 
 PRINT_TRAINING_SCORE = True
 
@@ -58,16 +56,41 @@ label = ['None', 'Generic', 'Fuzzers', 'Exploits', 'Dos', 'Reconnaissance', 'Ana
 
 #endregion
 
-#region Dave Special
+#region Dave
 
-# @dave special
 #
 # Returns column names of features with a correlation > 0.3
+# Creates heat map, bar chart, pairplot
 #
 def analyze_feature_correlation(df):
     # Analysis
     analysis_set = df.copy()
     analysis_set['attack_cat'], _ = pd.factorize(analysis_set['attack_cat'])
+
+    # Create heatmap
+    plt.rcParams.update({'font.size': 40}) 
+    plt.rcParams['figure.figsize'] = (80, 40)
+    sns.heatmap(analysis_set.corr(), annot = True)
+    plt.savefig('heatmap.png')
+    plt.show()
+
+    # Create BarPlot
+    correlation = analysis_set.corr().values[-2:-1].T
+    plt.rcParams.update({'font.size': 72}) 
+    correlation.plot(kind='bar')
+    label = '{} correlated features found'.format(len(correlation))
+    plt.title(label)
+    plt.xlabel('Correlated features')
+    plt.ylabel('Correlation coefficient')
+    plt.gcf().subplots_adjust(bottom=0.4)
+    plt.savefig('correlated_features')
+    plt.show()
+
+    # PairPlot
+    plt.rcParams.update({'font.size': 12}) 
+    sns.pairplot(df[rfc_correlated_features], diag_kind='kde')
+    plt.savefig('pairplot')
+    plt.show()
 
     correlation = analysis_set.corr().values[-2:-1]
     # Find the indices of the critical features
@@ -79,7 +102,21 @@ def analyze_feature_correlation(df):
 
     return df.iloc[:, correlation_keys].columns.tolist()
 
-# @dave special
+#
+# Returns the 10 most important features according to the classifier
+#
+def most_important_features(df):
+    x = df.iloc[:, :-2]
+    y = df['attack_cat']
+
+    classifier = RandomForestClassifier(n_estimators=1000, criterion='entropy', 
+                                        max_depth=24, min_samples_split=10, 
+                                        min_samples_leaf=2, max_features=None, 
+                                        bootstrap=True, n_jobs=-1)
+    
+    frame = pd.DataFrame({'Feature': clf.feature_names_in_, 'Importance': classifier.feature_importances_})
+    return frame.sort_values(by='Importance', ascending=False)['Feature'].head(10).values.tolist()
+
 #
 # Helper function to evaluate model performance
 #
@@ -96,10 +133,8 @@ def evaluate(model, test_features, test_labels):
 
     return accuracy
     
-# @dave special
 #
-# Attempts to define the best possible hyperparameters for a 
-# RandomForestClassifier
+# Attempts to define the best possible hyperparameters for a RandomForestClassifier
 #
 def hyperparameter_tuning(df):
     # 1 - Create training data
@@ -183,6 +218,13 @@ def hyperparameter_tuning(df):
     print('\nGridSearch Best Params\n*****************************')
     print(grid_search.best_params_)
 
+#
+# Runs k fold cross validation for the given model/data
+#
+def k_fold_cross_validation(clf, x, y):
+    print("Analyzing cross validation")
+    cross_validation = cross_val_score(clf, x, y, cv=5, scoring='accuracy', n_jobs=-1)
+    print(f'Cross Validation Score:\n{cross_validation}')
 
 #endregion
 
