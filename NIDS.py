@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import sys
 import time
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV, GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
@@ -34,6 +34,8 @@ class Classifier(Enum):
     LogisticRegression = 2
     KNearestNeighbors = 3
 
+#region feature selection
+
 feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state', 'dur', 
                 'sbytes', 'dbytes', 'sttl', 'dttl', 'sloss', 'dloss', 'service', 
                 'Sload', 'Dload', 'Spkts', 'Dpkts', 'swin', 'dwin', 'stcpb', 
@@ -44,9 +46,9 @@ feature_cols = ['srcip', 'sport', 'dstip', 'dsport', 'proto', 'state', 'dur',
                 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ ltm', 'ct_src_dport_ltm', 
                 'ct_dst_sport_ltm', 'ct_dst_src_ltm']
 rfc_correlated_features = ['sttl', 'ct_state_ttl', 'dttl', 'ackdat', 'state', 
-                           'tcprtt', 'proto']
-rfc_important_features = ['dsport', 'ct_srv_dst', 'dbytes', 'sbytes', 'dmeansz', 
-                          'smeansz', 'sport', 'Dpkts']
+                           'tcprtt']
+rfc_important_features = ['proto', 'dsport', 'ct_srv_dst', 'dbytes', 'sbytes', 
+                          'dmeansz', 'smeansz', 'sport', 'Dpkts']
 rfc_categorical_features = ['srcip', 'dstip']
 
 Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl', 
@@ -54,14 +56,133 @@ Feat15 =          ['sport', 'dsport', 'proto', 'sbytes', 'dbytes', 'sttl', 'dttl
                    'ct_state_ttl', 'ct_srv_dst']
 label = ['None', 'Generic', 'Fuzzers', 'Exploits', 'Dos', 'Reconnaissance', 'Analysis', 'Shellcode', 'Backdoors', 'Worms']
 
+#endregion
+
 #region Dave Special
 
 # @dave special
-def analyze_feature_correlation():
-    return
+#
+# Returns column names of features with a correlation > 0.3
+#
+def analyze_feature_correlation(df):
+    # Analysis
+    analysis_set = df.copy()
+    analysis_set['attack_cat'], _ = pd.factorize(analysis_set['attack_cat'])
+
+    correlation = analysis_set.corr().values[-2:-1]
+    # Find the indices of the critical features
+    correlation_keys = dict(enumerate(correlation[0]))
+    # Remove label and attack_cat
+    correlation_keys.popitem()
+    correlation_keys.popitem()
+    correlation_keys = list({key: value for key, value in correlation_keys.items() if value > 0.3}.keys())
+
+    return df.iloc[:, correlation_keys].columns.tolist()
+
 # @dave special
-def hyperparameter_tuning():
-    return
+#
+# Helper function to evaluate model performance
+#
+def evaluate(model, test_features, test_labels):
+    predictions = model.predict(test_features)
+    errors = abs(predictions - test_labels)
+    mean_error = np.mean(errors)
+    mean_label = np.mean(test_labels)
+    mape = 100 * (mean_error / mean_label)
+    accuracy = 100 - mape
+    print('\nModel Performance')
+    print('Average Error: {:0.4f} degrees.'.format(np.mean(errors)))
+    print('Accuracy = {:0.2f}%.'.format(accuracy))
+
+    return accuracy
+    
+# @dave special
+#
+# Attempts to define the best possible hyperparameters for a 
+# RandomForestClassifier
+#
+def hyperparameter_tuning(df):
+    # 1 - Create training data
+    features = pd.concat([df[rfc_correlated_features], 
+                          df[rfc_important_features],
+                          df[rfc_categorical_features]], axis=1).columns
+
+    x = df[features].head(20000)
+    y = df.attack_cat.head(20000)
+    train_features, test_features, train_labels, test_labels = train_test_split(x, y, test_size=.2, random_state=0)
+
+    # 2 - Base model to get default params
+    rf = RandomForestRegressor(random_state=42)
+    
+    print('Parameters currently in use:\n')
+    print(rf.get_params())
+
+    # 3 - Randomized grid search
+
+    # Grid parameters
+    n_estimators = [int(x) for x in np.linspace(start=100, stop=1000, num=10)]
+    max_features = ['log2', 'sqrt', None]
+    max_depth = [int(x) for x in np.linspace(10, 110, num=11)]
+    max_depth.append(None)
+    min_samples_split = [2, 5, 10]
+    min_samples_leaf = [1, 2, 4]
+    bootstrap = [True, False]
+
+    # Create the random grid
+    random_grid = {'n_estimators': n_estimators,
+                   'max_features': max_features,
+                   'max_depth': max_depth,
+                   'min_samples_split': min_samples_split,
+                   'min_samples_leaf': min_samples_leaf,
+                   'bootstrap': bootstrap}
+    print('\nRandom Grid\n******************')
+    print(random_grid)
+
+    # Create the randomized search and establish best params
+    rf = RandomForestRegressor()
+    rf_random = RandomizedSearchCV(estimator=rf, 
+                                   param_distributions=random_grid, n_iter=100, 
+                                   cv=3, verbose=2, random_state=42, n_jobs=-1)
+    
+    rf_random.fit(test_features, test_labels)
+    print('RF Best Params\n*****************************')
+    print(rf_random.best_params_)
+
+    base_model = RandomForestRegressor(n_estimators=10, random_state=42)
+    base_model.fit(train_features, train_labels)
+    base_accuracy = evaluate(base_model, test_features, test_labels)
+
+    best_random = rf_random.best_estimator_
+    random_accuracy = evaluate(best_random, test_features, test_labels)
+
+    print('Improvement of {:0.2f}%.'.format(100 * (random_accuracy - base_accuracy) / base_accuracy))
+
+    # 4 - Directed grid search for fine tuning
+
+    param_grid = {
+        'bootstrap': [True],
+        'max_depth': [5, 10, 15],
+        'min_samples_leaf': [1, 2, 3],
+        'min_samples_split': [1, 2, 3],
+        'n_estimators': [100, 200, 300, 1000]
+    }
+
+    # Instantiate the grid search model
+    grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, cv=3, 
+                               n_jobs=-1, verbose=2)
+
+    # Fit the grid search to the data
+    grid_search.fit(train_features, train_labels)
+    print(grid_search.best_params_)
+
+    best_grid = grid_search.best_estimator_
+    grid_accuracy = evaluate(best_grid, test_features, test_labels)
+
+    print('Improvement of {:0.2f}%.'.format(100 * (grid_accuracy - base_accuracy) / base_accuracy))
+
+    print('\nGridSearch Best Params\n*****************************')
+    print(grid_search.best_params_)
+
 
 #endregion
 
@@ -307,6 +428,9 @@ def LR_Sampling_Test(datafile):
     LR_classifyAtk(datafile, 50000)   
 #endregion
 
+#
+# Creates and returns a dataframe for the given filename
+#
 def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
     print(f'Loading data from {filename}')
     df = pd.read_csv(filename, header=0, low_memory=False, skipinitialspace=True)
@@ -336,6 +460,9 @@ def create_model(filename="UNSW-NB15-BALANCED-TRAIN.csv"):
 
     return df
 
+#
+# Applies principal component analysis
+#
 def apply_PCA(train,test):
     pca = PCA(n_components=10, svd_solver='full')
     pca.fit(train)
@@ -343,6 +470,9 @@ def apply_PCA(train,test):
     test = pca.transform(test)
     return train, test
 
+#
+# Creates training and test data for a given model/target
+#
 def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_validation=False):
     scaler = None
     if classifier == Classifier.LogisticRegression:
@@ -374,17 +504,26 @@ def df_preprocessing(df, classifier, target, apply_dimension_reduction, for_vali
     
     return x_train, x_test, y_train, y_test
 
+#
+#
+#
 def df_postprocessing(x_train, y_train):
     sm = SMOTE(random_state = 1, k_neighbors = 5)
     x_train, y_train = sm.fit_resample(x_train, y_train)
     return np.unique(y_train, return_counts=True)
 
+#
+# Returns prediction results for a model in training
+#
 def classify(x_train, x_test, y_train, classifier, model_loaded):
     if not model_loaded:
         classifier.fit(x_train, y_train)
     y_predict = classifier.predict(x_test)
     return y_predict
 
+#
+# Returns prediction results for a trained model
+#
 def validation(filename, classifier_enum, classifier, target, apply_dimension_reduction):
     df = create_model(filename)
     x, y = df_preprocessing(df, classifier_enum, target, apply_dimension_reduction, for_validation=True)
@@ -395,7 +534,10 @@ def validation(filename, classifier_enum, classifier, target, apply_dimension_re
         x = pca.transform(x) 
 
     return classifier.predict(x), y
-    
+
+#
+# Prints prediction results to the console
+#
 def print_result(y_test, y_predict, classification_target):
     if PRINT_TRAINING_SCORE:
         if classification_target == Classification_target.Label:
@@ -461,6 +603,7 @@ def main():
     start_time = time.time()
     if not model_loaded:
         # Execute
+        print(f'Starting training of model')
         df = create_model(filename)
         x_train, x_test, y_train, y_test = df_preprocessing(df, classifier_enum, classification_target, feature_reduction)
         if data_balance:
@@ -472,11 +615,10 @@ def main():
         # print(classifier.classes_)
         print_result(y_test, y_predict, classification_target)
         execution_time = time.time() - start_time
-        if PRINT_TRAINING_SCORE:
-            print(f'Training completed in {execution_time} seconds')
+        print(f'Training completed in {execution_time} seconds')
     
-    start_time = time.time()
     #validate
+    start_time = time.time()
     y_predict, y_test = validation(heldout_filename,classifier_enum, classifier, classification_target, feature_reduction)
     print_result(y_test, y_predict, classification_target)
     validation_time = time.time() - start_time
