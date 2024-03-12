@@ -4,6 +4,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
@@ -19,13 +20,14 @@ import nltk
 dataFile = '8085_A1/reduced_dataset_10000.json'
 
 class NBClassifier():
-    def __init__(self, alpha_s = 0.01, alpha_cuf = 0.00001) -> None:
+    def __init__(self, alpha_s = 0.05, alpha_cuf = 0.000001, ngram = 1) -> None:
         self.words_dicts = {}
         self.priors_dict = {}
         self.count_dict = {}
         self.unique_words = []
         self.alpha_s = alpha_s
         self.alpha_cuf = alpha_cuf
+        self.ngram = ngram
     
     """
     calculates the count and prior probability of each class.
@@ -105,6 +107,16 @@ class NBClassifier():
 
         return processed
     
+    def ngram_split(self,text):
+            single_words = text.split()
+            groups = [single_words[i:i+self.ngram] for i in range(0,len(single_words),self.ngram)]
+            groups.pop()
+            groups.append(single_words[(len(single_words)-self.ngram):len(single_words)])
+            tokens = []
+            for g in groups:
+                tokens.append(' '.join(g))
+            return tokens
+    
     def train(self, X_train, y_train):
         cuf_keys = ['c0','c1','c2','c5','u0','u1','u2','u5','f0','f1','f2','f5']
         st = time.time()
@@ -117,12 +129,16 @@ class NBClassifier():
         y_useful = y_train.useful.values
         y_funny = y_train.funny.values
 
+        
         #creating list of all unique words in training data
         for text in X_processed:
-            words = text.split()
-            for word in words:
-                if word not in self.unique_words:
-                    self.unique_words.append(word)
+            if(self.ngram == 1):
+                tokens = text.split()
+            else:
+                tokens = self.ngram_split(text)
+            for t in tokens:
+                if t not in self.unique_words:
+                    self.unique_words.append(t)
 
         #initializing dicts that contain word counts
         for i in range(5):
@@ -154,13 +170,16 @@ class NBClassifier():
             elif(2 >= y_funny[i] < 5): f_label = 'f2'
             elif(y_funny[i] > 5): f_label = 'f5'
 
-            tokens = X_processed[i].split()
+            if(self.ngram == 1):
+                tokens = X_processed[i].split()
+            else:
+                tokens = self.ngram_split(X_processed[i])
             for token in tokens:
                 self.words_dicts[str(s_label)][token] += 1
                 self.words_dicts[c_label][token] += 1
                 self.words_dicts[u_label][token] += 1
                 self.words_dicts[f_label][token] += 1
-
+  
         print("training time: ", time.time() - st)
 
     def get_word_prob(self, word, label):
@@ -171,6 +190,7 @@ class NBClassifier():
             numerator = self.words_dicts[label][word] + self.alpha_cuf
             denominator = self.count_dict[label] + (len(self.unique_words)*self.alpha_cuf)
         return log(numerator/denominator)
+    
 
     def predict(self, X_test):
         s_keys = ['1','2','3','4','5']
@@ -182,9 +202,16 @@ class NBClassifier():
         print("predicting...")
 
         X_processed = self.preprocessing(X_test)
-        for text in X_processed:
+        X_count = len(X_processed)
+        print(f"Total records: {X_count}")
+        
+        for index,text in enumerate(X_processed):
             s_probs,c_probs,u_probs,f_probs = ([]for i in range(4))
-            words = text.split()
+
+            if(self.ngram == 1):
+                tokens = text.split()
+            else:
+                tokens = self.ngram_split(text)
 
             for s_key,c_key,u_key,f_key in zip(s_keys,c_keys,u_keys,f_keys):
                 s_cur_prob = self.priors_dict[s_key]
@@ -192,13 +219,13 @@ class NBClassifier():
                     c_cur_prob = self.priors_dict[c_key]
                     u_cur_prob = self.priors_dict[u_key]
                     f_cur_prob = self.priors_dict[f_key]
-                for word in words:
-                    if word in self.unique_words:
-                        s_cur_prob += self.get_word_prob(word, s_key)
+                for token in tokens:
+                    if token in self.unique_words:
+                        s_cur_prob += self.get_word_prob(token, s_key)
                         if c_key != 'n':
-                            c_cur_prob += self.get_word_prob(word, c_key)
-                            u_cur_prob += self.get_word_prob(word, u_key)
-                            f_cur_prob += self.get_word_prob(word, f_key)
+                            c_cur_prob += self.get_word_prob(token, c_key)
+                            u_cur_prob += self.get_word_prob(token, u_key)
+                            f_cur_prob += self.get_word_prob(token, f_key)
                 s_probs.append(s_cur_prob)
                 if c_key != 'n':
                     c_probs.append(c_cur_prob)
@@ -216,6 +243,8 @@ class NBClassifier():
                     case 2: pred = 2
                     case 3: pred = 5
                 results[i].append(pred)
+
+            if((index % (X_count/10)) == 0): print(f"Completed {index}/{X_count}")
 
         print("predicting time: ", time.time() - st)
 
@@ -270,9 +299,11 @@ if __name__ == "__main__":
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 1/5, random_state=0)
 
-    clf = NBClassifier(alpha_s=0.01, alpha_cuf=0.0001)
+    clf = NBClassifier(alpha_s=0.05, alpha_cuf=0.000001, ngram=2)
 
     clf.train(X_train, y_train)
     pred = clf.predict(X_test)
+    print(accuracy_score(y_true=y_test.stars.values,y_pred=pred[0]))
+    print(confusion_matrix(y_true=y_test.stars.values,y_pred=pred[0]))
     evaluation(y_true=y_test, y_pred=pred)
 
