@@ -4,6 +4,7 @@ import numpy as np
 
 
 def main():
+    # Setup
     parser = argparse.ArgumentParser()
     parser.add_argument('heldout_filename')
     parser.add_argument('classification_method')
@@ -15,6 +16,7 @@ def main():
 
     dataframe = pd.read_csv(heldout_filename, lines=True)
 
+    # Execute
     if classification_method == 'neural_network':
         neural_network(dataframe, training)
     elif classification_method == 'naive_bayes':
