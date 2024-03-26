@@ -16,6 +16,7 @@ nltk.download('stopwords')
 REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')
 BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
 STOPWORDS = set(stopwords.words('english'))
+MAX_LINES = 1_000_000
 
 
 def clean_text(text):
@@ -32,12 +33,13 @@ def main():
     parser.add_argument('heldout_filename')
     parser.add_argument('classification_method')
     parser.add_argument('training')
+
     args, unknown = parser.parse_known_args()
     heldout_filename = args.heldout_filename
     classification_method = args.classification_method
-    training = True if str.lower(args.training) == 'True' else False
+    training = True if str.lower(args.training) == 'true' else False
 
-    dataframe = pd.read_json(heldout_filename, lines=True)
+    dataframe = pd.read_json(heldout_filename, lines=True, nrows=MAX_LINES)
 
     # Execute
     if classification_method == 'neural_network':
@@ -68,13 +70,12 @@ def logistic_regression(df, training=False):
 
         # Stopwords
         stop_words = stopwords.words('english')
-        df['text'] = df['text'].apply(
-            lambda x: " ".join(word for word in x.split() if word not in stop_words))
+        df['text'] = df['text'].apply(lambda x: " ".join(word for word in x.split() if word not in stop_words))
         other_stop_words = ['get', 'would', 'got', 'us', 'also', 'even', 'ive', 'im']
         df['text'] = df['text'].apply(lambda x: " ".join(word for word in x.split() if word not in other_stop_words))
 
         # Lemmatize
-        df['lemmatized'] = df['clean_reviews'].apply(lambda x: " ".join(Word(word).lemmatize() for word in x.split()))
+        df['lemmatized'] = df['text'].apply(lambda x: " ".join(Word(word).lemmatize() for word in x.split()))
 
         # 0 index stars
         df['stars'] = df['stars'].apply(lambda x: x - 1)
@@ -96,7 +97,7 @@ def logistic_regression(df, training=False):
         print(classification_report(y_test, y_pred))
 
         # Dump
-        with open('classifier', 'wb') as file:
+        with open('classifier.pkl', 'wb') as file:
             pickle.dump(model, file)
 
         # Train Linear Model
@@ -121,7 +122,6 @@ def logistic_regression(df, training=False):
 
         num_rounds = 500
         bst = xgb.train(params, dtrain, num_rounds)
-        pickle.dump(bst, open('linear_model.pkl', 'wb'))
 
         # Predict Linear Values
         preds = bst.predict(dtest)
@@ -136,10 +136,11 @@ def logistic_regression(df, training=False):
         # Dump
         with open('linear.pkl', 'wb') as file:
             pickle.dump(model, file)
+    else:
+        with open('classifier.pkl', 'rb') as file:
+            model = pickle.load(file)
 
-    with open('classifier.pkl', 'rb') as file:
-        model = pickle.load(file)
-
+        vectorizer = TfidfVectorizer()
         x_test = vectorizer.fit_transform(df['text'])
         y_test = df['stars']
 
@@ -151,13 +152,19 @@ def logistic_regression(df, training=False):
 
         print(classification_report(y_test, y_pred))
 
-    with open('linear.pkl') as file:
-        model = pickle.load(file)
+        with open('linear.pkl') as file:
+            model = pickle.load(file)
+        x = df['text']
+        y1 = df['useful']
+        y2 = df['funny']
+        y3 = df['cool']
 
-        preds = bst.predict(dtest)
-        rmse_y1 = np.sqrt(mean_squared_error(y1_test, preds[:, 0]))
-        rmse_y2 = np.sqrt(mean_squared_error(y2_test, preds[:, 1]))
-        rmse_y3 = np.sqrt(mean_squared_error(y3_test, preds[:, 2]))
+        dtest = xgb.DMatrix(x, label=np.column_stack((y1, y2, y3)))
+
+        preds = model.predict(dtest)
+        rmse_y1 = np.sqrt(mean_squared_error(y1, preds[:, 0]))
+        rmse_y2 = np.sqrt(mean_squared_error(y2, preds[:, 1]))
+        rmse_y3 = np.sqrt(mean_squared_error(y3, preds[:, 2]))
 
         print("RMSE for Target Useful:", rmse_y1)
         print("RMSE for Target Funny:", rmse_y2)
