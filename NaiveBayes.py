@@ -5,22 +5,24 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from matplotlib import pyplot as plt
 from collections import Counter
 from math import log
 import time
+import pickle
 
 import nltk
 #nltk.download('stopwords')
 #nltk.download('punkt')
 #nltk.download('wordnet')
-dataFile = '8085_A1/reduced_dataset_10000.json'
+dataFile = '8085_A1\\reduced_dataset_3000000.json'
 
 class NBClassifier():
-    def __init__(self, alpha_s = 0.05, alpha_cuf = 0.000001, ngram = 1) -> None:
+    def __init__(self, alpha_s = 0.05, alpha_cuf = 0.000001, ngram = 1, drop = 0) -> None:
         self.words_dicts = {}
         self.priors_dict = {}
         self.count_dict = {}
@@ -28,6 +30,7 @@ class NBClassifier():
         self.alpha_s = alpha_s
         self.alpha_cuf = alpha_cuf
         self.ngram = ngram
+        self.drop = drop
     
     """
     calculates the count and prior probability of each class.
@@ -129,7 +132,7 @@ class NBClassifier():
         y_useful = y_train.useful.values
         y_funny = y_train.funny.values
 
-        
+        X_count = len(X_processed)
         #creating list of all unique words in training data
         for text in X_processed:
             if(self.ngram == 1):
@@ -150,7 +153,8 @@ class NBClassifier():
             self.words_dicts[k] = {}
             for j in self.unique_words:
                 self.words_dicts[k][j] = 0
-
+        
+        
         #Counting times each word appears in training data
         for i in range(len(X_processed)):
             s_label = y_stars[i]
@@ -179,15 +183,33 @@ class NBClassifier():
                 self.words_dicts[c_label][token] += 1
                 self.words_dicts[u_label][token] += 1
                 self.words_dicts[f_label][token] += 1
-  
+            if((i % (X_count/10)) == 0): print(f"{(i/X_count)*100}% complete")
         print("training time: ", time.time() - st)
+
+        if self.drop > 0:
+            for k,d in self.words_dicts.items():
+                res = Counter(d).most_common(self.drop)
+                print(f"top in {k}: {res}")
+            for k,d in self.words_dicts.items():
+                res = Counter(d).most_common(self.drop)
+                for word in res:
+                    del d[word[0]]
+            for k,d in self.words_dicts.items():
+                res = Counter(d).most_common(self.drop)
+                print(f"top in {k}: {res}")
 
     def get_word_prob(self, word, label):
         if label in ['1','2','3','4','5']:
-            numerator = self.words_dicts[label][word] + self.alpha_s
+            if word in self.words_dicts[label]:
+                numerator = self.words_dicts[label][word] + self.alpha_s
+            else:
+                numerator = 0 + self.alpha_s
             denominator = self.count_dict[label] + (len(self.unique_words)*self.alpha_s)
         else:
-            numerator = self.words_dicts[label][word] + self.alpha_cuf
+            if word in self.words_dicts[label]:
+                numerator = self.words_dicts[label][word] + self.alpha_cuf
+            else:
+                numerator = 0 + self.alpha_s
             denominator = self.count_dict[label] + (len(self.unique_words)*self.alpha_cuf)
         return log(numerator/denominator)
     
@@ -203,7 +225,6 @@ class NBClassifier():
 
         X_processed = self.preprocessing(X_test)
         X_count = len(X_processed)
-        print(f"Total records: {X_count}")
         
         for index,text in enumerate(X_processed):
             s_probs,c_probs,u_probs,f_probs = ([]for i in range(4))
@@ -244,7 +265,7 @@ class NBClassifier():
                     case 3: pred = 5
                 results[i].append(pred)
 
-            if((index % (X_count/10)) == 0): print(f"Completed {index}/{X_count}")
+            if((index % (X_count/10)) == 0): print(f"{(index/X_count)*100}% complete")
 
         print("predicting time: ", time.time() - st)
 
@@ -297,13 +318,16 @@ if __name__ == "__main__":
     X = df['text']
     y = df[['stars','cool','useful','funny']]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 1/5, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.05, random_state=0)
 
-    clf = NBClassifier(alpha_s=0.05, alpha_cuf=0.000001, ngram=2)
+    clf = NBClassifier(alpha_s=0.05, alpha_cuf=0.000001)
 
     clf.train(X_train, y_train)
+    pickle.dump(clf,open("NBmodel3M", 'wb'))
+    #clf = pickle.load(open('NBmodel','rb'))
     pred = clf.predict(X_test)
-    print(accuracy_score(y_true=y_test.stars.values,y_pred=pred[0]))
+    print(classification_report(y_true=y_test.stars.values,y_pred=pred[0]))
     print(confusion_matrix(y_true=y_test.stars.values,y_pred=pred[0]))
     evaluation(y_true=y_test, y_pred=pred)
+    print(classification_report(y_true=y_test.stars.values,y_pred=pred[0]))
 
