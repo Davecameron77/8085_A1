@@ -184,5 +184,10 @@ fabric.properties
 # idea folder, uncomment if you don't need it
 # .idea
 UNSW-NB15_3.csv
-
-*.json
+reduced_dataset_10000.json
+reduced_dataset_50000.json
+reduced_dataset_100000.json
+reduced_dataset_500000.json
+reduced_dataset_1000000.json
+reduced_dataset_3000000.json
+yelp_academic_dataset_review.json
