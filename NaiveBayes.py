@@ -19,7 +19,7 @@ import nltk
 #nltk.download('stopwords')
 #nltk.download('punkt')
 #nltk.download('wordnet')
-dataFile = '8085_A1\\reduced_dataset_3000000.json'
+dataFile = '8085_A1\\reduced_dataset_10000.json'
 
 class NBClassifier():
     def __init__(self, alpha_s = 0.05, alpha_cuf = 0.000001, ngram = 1, drop = 0) -> None:
@@ -111,11 +111,12 @@ class NBClassifier():
         return processed
     
     def ngram_split(self,text):
-            single_words = text.split()
-            groups = [single_words[i:i+self.ngram] for i in range(0,len(single_words),self.ngram)]
-            groups.pop()
-            groups.append(single_words[(len(single_words)-self.ngram):len(single_words)])
             tokens = []
+            groups = []
+            single_words = text.split()
+            
+            for i in range(self.ngram, len(single_words) + 1):
+                groups.append(single_words[i - self.ngram:i])
             for g in groups:
                 tokens.append(' '.join(g))
             return tokens
@@ -318,16 +319,15 @@ if __name__ == "__main__":
     X = df['text']
     y = df[['stars','cool','useful','funny']]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.05, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.2, random_state=0)
 
-    clf = NBClassifier(alpha_s=0.05, alpha_cuf=0.000001)
+    #clf = NBClassifier(alpha_s=0.01, alpha_cuf=0.000001, ngram=5)
 
-    clf.train(X_train, y_train)
-    pickle.dump(clf,open("NBmodel3M", 'wb'))
-    #clf = pickle.load(open('NBmodel','rb'))
+    #clf.train(X_train, y_train)
+    #pickle.dump(clf,open("NBmodel3M", 'wb'))
+    clf = pickle.load(open('NBmodel','rb'))
+    clf.alpha_s = 0.075
     pred = clf.predict(X_test)
-    print(classification_report(y_true=y_test.stars.values,y_pred=pred[0]))
     print(confusion_matrix(y_true=y_test.stars.values,y_pred=pred[0]))
     evaluation(y_true=y_test, y_pred=pred)
     print(classification_report(y_true=y_test.stars.values,y_pred=pred[0]))
-
