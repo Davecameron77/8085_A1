@@ -19,7 +19,7 @@ import nltk
 #nltk.download('stopwords')
 #nltk.download('punkt')
 #nltk.download('wordnet')
-dataFile = '8085_A1\\reduced_dataset_10000.json'
+dataFile = '8085_A1\\validation.json'
 
 class NBClassifier():
     def __init__(self, alpha_s = 0.05, alpha_cuf = 0.000001, ngram = 1, drop = 0) -> None:
@@ -114,7 +114,7 @@ class NBClassifier():
             tokens = []
             groups = []
             single_words = text.split()
-            
+
             for i in range(self.ngram, len(single_words) + 1):
                 groups.append(single_words[i - self.ngram:i])
             for g in groups:
@@ -316,17 +316,20 @@ if __name__ == "__main__":
     df = get_data(dataFile)
 
   
-    X = df['text']
-    y = df[['stars','cool','useful','funny']]
+    #X = df['text']
+    #y = df[['stars','cool','useful','funny']]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.2, random_state=0)
+    X_test = df['text']
+    y_test = df[['stars','cool','useful','funny']]
 
-    #clf = NBClassifier(alpha_s=0.01, alpha_cuf=0.000001, ngram=5)
+    #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.2, random_state=0)
+
+    #clf = NBClassifier(alpha_s=0.07, alpha_cuf=0.00000000000001, ngram=1)
 
     #clf.train(X_train, y_train)
-    #pickle.dump(clf,open("NBmodel3M", 'wb'))
+    #pickle.dump(clf,open("NBmodel", 'wb'))
     clf = pickle.load(open('NBmodel','rb'))
-    clf.alpha_s = 0.075
+
     pred = clf.predict(X_test)
     print(confusion_matrix(y_true=y_test.stars.values,y_pred=pred[0]))
     evaluation(y_true=y_test, y_pred=pred)

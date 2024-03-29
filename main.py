@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import re
+from NaiveBayes import NBClassifier
 from textblob import Word
 import xgboost as xgb
 from nltk.corpus import stopwords
@@ -35,7 +36,7 @@ def main():
     args, unknown = parser.parse_known_args()
     heldout_filename = args.heldout_filename
     classification_method = args.classification_method
-    training = True if str.lower(args.training) == 'True' else False
+    training = True if str.lower(args.training) == 'true' else False
 
     dataframe = pd.read_json(heldout_filename, lines=True)
 
@@ -54,7 +55,41 @@ def neural_network(df, training=False):
 
 
 def naive_bayes(df, training=False):
-    # TODO Nate
+    if training:
+        X = df['text']
+        y = df[['stars','cool','useful','funny']]
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size= 0.2, random_state=0)
+
+        clf = NBClassifier(alpha_s=0.07, alpha_cuf=0.00000000000001, ngram=1)
+
+        clf.train(X_train, y_train)
+
+    else:
+        clf = pickle.load(open('NBmodel','rb'))
+
+        X_test = df['text']
+        y_test = df[['stars','cool','useful','funny']]
+    
+    pred = clf.predict(X_test)
+
+    s_true = y_test['stars'].values
+    c_true = y_test['cool'].values
+    u_true = y_test['useful'].values
+    f_true = y_test['funny'].values
+
+    accuracy = accuracy_score(s_true,pred[0])
+    print("Accuracy: ", accuracy)
+
+    print(classification_report(s_true, pred[0]))
+
+    c_error = np.sqrt(mean_squared_error(c_true, pred[1]))
+    u_error = np.sqrt(mean_squared_error(u_true, pred[2]))
+    f_error = np.sqrt(mean_squared_error(f_true, pred[3]))
+
+    print("RMSE for Target Useful:", u_error)
+    print("RMSE for Target Funny:", f_error)
+    print("RMSE for Target Cool:", c_error)
     return
 
 
