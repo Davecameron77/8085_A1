@@ -21,6 +21,8 @@ from torch import nn
 from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import numpy as np
 
 model_name = 'distilbert-base-cased'
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
