@@ -7,6 +7,8 @@ from NaiveBayes import NBClassifier
 from sklearn.metrics import accuracy_score, classification_report, mean_squared_error
 from sklearn.model_selection import train_test_split
 import deeplearning 
+import torch
+import yelp
 
 def main():
     # Setup
@@ -51,7 +53,7 @@ def neural_network(df, training=False, target='stars'):
         model = 'TransformerRNNClassifier'
         model = torch.load(model)
         test = yelp.YelpDataset(df)
-        test_loader = DataLoader(test, shuffle=True)
+        test_loader = yelp.DataLoader(test, shuffle=True)
         if target == 'stars':
             deeplearning.validation(model, test_loader)
         else: 
