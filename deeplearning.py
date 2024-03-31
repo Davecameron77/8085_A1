@@ -85,6 +85,11 @@ def validation_for_regression(model, validation_loader):
     mae = mean_absolute_error(actuals, predictions)
     r2 = r2_score(actuals, predictions)
 
+    print(f'MSE: {mse:.4f}')
+    print(f'RMSE: {rmse:.4f}')
+    print(f'MAE: {mae:.4f}')
+    print(f'R²: {r2:.4f}')
+
 def training_TransformerRNNClassifier(train_loader):
     model = yelp.TransformerRNNClassifier(device=device,transformer_model_name=model_name, hidden_dim=128, num_layers=3, num_classes=5) 
     model = model.to(device)
@@ -113,7 +118,7 @@ def training_TransformerRNNClassifier(train_loader):
             progress_bar.set_postfix(loss=loss.item())
     torch.save(model, 'TransformerRNNClassifier')
     
-def training(train_loader, target):
+def training(train_loader, target_name):
     model = yelp.TransformerRNNRegression(device, model_name)
     model = model.to(device) 
     loss_fn = torch.nn.MSELoss()
@@ -126,7 +131,7 @@ def training(train_loader, target):
         for batch in progress_bar:
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
-            target = batch[target].to(device).float()
+            target = batch[target_name].to(device).float()
             target = target
             # Assuming model and data are moved to the same device
             predictions = model(input_ids, attention_mask)
