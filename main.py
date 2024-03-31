@@ -27,8 +27,8 @@ def main():
         dataframe = pd.read_json(heldout_filename)
     # Execute
     if classification_method == 'neural_network':
-        target = 'stars'
-        # target = 'funny' 
+        # target = 'stars'
+        target = 'funny' 
         # target = 'cool'
         # target = 'useful'
         neural_network(dataframe, training, target)

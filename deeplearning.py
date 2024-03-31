@@ -147,3 +147,17 @@ def training(train_loader, target_name):
 
    
 
+def input_pre_process():
+    file_name = "yelp_academic_dataset_review.json"
+    data_list = []    
+    with open(file_name) as f:
+        lines = f.readlines()
+        lines.reverse()
+        lines = lines[0:5000]
+        for line in lines:
+            data = json.loads(line, object_hook=yelp.Yelp.custom_json_decoder)
+            data_list.append(data.to_dict())
+    print(data_list)
+    
+    with open("processed_last_5k.json", "w") as outfile:
+        json.dump(data_list, outfile, indent=4)
