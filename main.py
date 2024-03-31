@@ -27,9 +27,9 @@ def main():
         dataframe = pd.read_json(heldout_filename)
     # Execute
     if classification_method == 'neural_network':
-        target = 'stars'
+        # target = 'stars'
         # target = 'funny' 
-        # target = 'cool'
+        target = 'cool'
         # target = 'useful'
         neural_network(dataframe, training, target)
     elif classification_method == 'naive_bayes':
@@ -50,7 +50,10 @@ def neural_network(df, training=False, target='stars'):
         else: 
            deeplearning.training(train_loader, target)
     else:
-        model = 'TransformerRNNClassifier'
+        # model = 'TransformerRNNClassifier'
+        model = 'TransformerRNNRegressor_cool'
+        # model = 'TransformerRNNRegressor_useful'
+        # model = 'TransformerRNNRegressor_funny'
         model = torch.load(model)
         test = yelp.YelpDataset(df)
         test_loader = yelp.DataLoader(test, shuffle=True)

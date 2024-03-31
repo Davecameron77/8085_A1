@@ -61,7 +61,6 @@ def validation(model, validation_loader):
 
 def validation_for_regression(model, validation_loader):
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    df = pd.read_json(file_name)
     model.eval()  # Set the model to evaluation mode
     predictions = []
     actuals = []
