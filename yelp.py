@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from transformers import AutoTokenizer, AutoModel
+from transformers import PreTrainedTokenizerFast, AutoTokenizer, AutoModel, DistilBertModel,DistilBertConfig
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -100,7 +100,10 @@ class YelpDataset(Dataset):
         input_ids = torch.tensor(self.df['input_ids'].to_list()[i]).squeeze(0)
         attention_mask = torch.tensor(self.df['attention_mask'].to_list()[i]).squeeze(0)
         label = torch.tensor(self.df['stars'].to_list()[i]).squeeze(0)
-        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'labels': label}
+        cool = torch.tensor(self.df['cool'].to_list()[i]).squeeze(0)
+        funny = torch.tensor(self.df['funny'].to_list()[i]).squeeze(0)
+        useful = torch.tensor(self.df['useful'].to_list()[i]).squeeze(0)
+        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'labels': label, 'cool': cool, 'funny': funny, 'useful': useful}
 
     def __len__(self):
         return len(self.df)
@@ -145,17 +148,77 @@ class TransformerRNNClassifier(nn.Module):
         logits = self.classifier(pooled_output)
         return logits
 
-def tokenize(file_name):
-    file_name = file_name
-    data_list = []    
-    with open(file_name) as f:
-        lines = f.readlines()
-        lines.reverse()
-        lines = lines[0:5000]
-        for line in lines:
-            data = json.loads(line, object_hook=yelp.Yelp.custom_json_decoder)
-            data_list.append(data.to_dict())
-    print(data_list)
-    
-    with open("processed_last_5k.json", "w") as outfile:
-        json.dump(data_list, outfile, indent=4)
+
+class TransformerRNNRegression(nn.Module):
+    def __init__(self, device, transformer_model, rnn_hidden_size=256, rnn_layers=2):
+        super(TransformerRNNRegression, self).__init__()
+        dropout_rate = 0.1
+        self.transformer = AutoModel.from_pretrained(transformer_model)
+        transformer_hidden_size = self.transformer.config.hidden_size
+        self.rnn = nn.LSTM(input_size=transformer_hidden_size,
+                           hidden_size=rnn_hidden_size,
+                           num_layers=rnn_layers,
+                           batch_first=True).to(device)
+        
+        # Output layer for regression
+        self.out =  nn.Sequential(
+            nn.Linear(rnn_hidden_size, rnn_hidden_size * 2),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(rnn_hidden_size * 2, rnn_hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(rnn_hidden_size, 1)
+        ).to(device)
+
+    def forward(self, input_ids, attention_mask=None):
+        transformer_output = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
+        
+        # Get the last hidden states
+        hidden_states = transformer_output.last_hidden_state
+        
+        # Pass the hidden states through the RNN
+        rnn_output, _ = self.rnn(hidden_states)
+        
+        # Use the output from the last time step for regression prediction
+        last_time_step_output = rnn_output[:, -1, :]
+        
+        # Pass through the output layer
+        output = self.out(last_time_step_output)
+        
+        return output
+
+#experiment No.1 combare between RNN and CNN 
+class DeeperRatingClassifier(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, num_filters, filter_sizes, output_dim, dropout):
+        super().__init__()
+        
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        
+        # Define multiple sets of convolutional layers for each filter size
+        self.conv_blocks = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(in_channels=1, out_channels=num_filters, kernel_size=(fs, embedding_dim)),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=num_filters, out_channels=num_filters, kernel_size=(fs, 1)),
+                nn.ReLU()
+            ) for fs in filter_sizes
+        ]).to(device)
+        
+        self.fc1 = nn.Linear(len(filter_sizes) * num_filters, 100)  # Adding an additional dense layer
+        self.fc2 = nn.Linear(100, output_dim)
+        
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, text):
+        embedded = self.embedding(text)
+        embedded = embedded.unsqueeze(1)  # [batch size, 1, sent len, emb dim]
+        
+        # Apply convolutional blocks
+        conved = [conv_block(embedded).squeeze(3) for conv_block in self.conv_blocks]
+        pooled = [F.max_pool1d(conv, conv.shape[2]).squeeze(2) for conv in conved]
+        
+        cat = self.dropout(torch.cat(pooled, dim=1))
+        
+        # Pass through additional fully connected layers
+        return self.fc2(self.dropout(F.relu(self.fc1(cat))))

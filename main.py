@@ -6,7 +6,7 @@ from dave import Dave
 from NaiveBayes import NBClassifier
 from sklearn.metrics import accuracy_score, classification_report, mean_squared_error
 from sklearn.model_selection import train_test_split
-
+import deeplearning 
 
 def main():
     # Setup
@@ -14,17 +14,22 @@ def main():
     parser.add_argument('heldout_filename')
     parser.add_argument('classification_method')
     parser.add_argument('training')
-
+    
     args, unknown = parser.parse_known_args()
     heldout_filename = args.heldout_filename
     classification_method = args.classification_method
     training = True if str.lower(args.training) == 'true' else False
-
-    dataframe = pd.read_json(heldout_filename, lines=True)
-
+    if classification_method != 'neural_network': 
+        dataframe = pd.read_json(heldout_filename, lines=True)
+    else:
+        dataframe = pd.read_json(heldout_filename)
     # Execute
     if classification_method == 'neural_network':
-        neural_network(dataframe, training)
+        target = 'stars'
+        # target = 'funny' 
+        # target = 'cool'
+        # target = 'useful'
+        neural_network(dataframe, training, target)
     elif classification_method == 'naive_bayes':
         naive_bayes(dataframe, training)
     else:
@@ -34,8 +39,23 @@ def main():
             Dave.validate_models(heldout_filename)
 
 
-def neural_network(df, training=False):
-    # TODO Raymond
+def neural_network(df, training=False, target='stars'):
+    if training:
+        train_dataset = yelp.YelpDataset(df)
+        train_loader = DataLoader(train_dataset, shuffle=True)
+        if target == 'stars':
+            deeplearning.training_TransformerRNNClassifier(train_loader)    
+        else: 
+           deeplearning.training(train_loader, target)
+    else:
+        model = 'TransformerRNNClassifier'
+        model = torch.load(model)
+        test = yelp.YelpDataset(df)
+        test_loader = DataLoader(test, shuffle=True)
+        if target == 'stars':
+            deeplearning.validation(model, test_loader)
+        else: 
+            deeplearning.validation_for_regression(model, test_loader)
     return
 
 

@@ -22,24 +22,10 @@ from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 from sklearn.metrics import accuracy_score, classification_report
 
-
-
-# def main():
-#     file_name = "yelp_academic_dataset_review.json"
-#     data_list = []    
-#     with open(file_name) as f:
-#         lines = f.readlines()[0:10000]
-#         for line in lines:
-#             data = json.loads(line, object_hook=yelp.Yelp.custom_json_decoder)
-#             data_list.append(data.to_dict())
-#     print(data_list)
-    
-#     with open("processed_first_10000.json", "w") as outfile:
-#         json.dump(data_list, outfile, indent=4)
-
 model_name = 'distilbert-base-cased'
+device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 
-def validation(model, test_dataset):
+def validation(model, validation_loader):
     total_correct = 0
     total_count = 0
     val_loss = 0
@@ -50,7 +36,6 @@ def validation(model, test_dataset):
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     # model = torch.load('TransformerRNNClassifier_Model_800000')
     model.eval()
-    validation_loader = DataLoader(test_dataset, shuffle=True)
     loss_fn = torch.nn.CrossEntropyLoss()
     with torch.no_grad():
         progress_bar = tqdm(validation_loader)
@@ -73,23 +58,37 @@ def validation(model, test_dataset):
     avg_loss = val_loss / len(validation_loader)
     print(f"Validation Loss: {avg_loss}, Accuracy: {accuracy}")
 
-def train(file_name):
+
+def validation_for_regression(model, validation_loader):
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    file_name = "processed_first_10000.json"
     df = pd.read_json(file_name)
-    # train, test = train_test_split(df, test_size=0.3)
-    test_file_name = "processed_last_5k.json"
-    test_df = pd.read_json(test_file_name)
-    train_dataset = yelp.YelpDataset(df)
-    test_dataset = yelp.YelpDataset(test_df)
+    model.eval()  # Set the model to evaluation mode
+    predictions = []
+    actuals = []
+    with torch.no_grad():  # No need to track gradients during evaluation
+        progress_bar = tqdm(validation_loader)
+        for batch in progress_bar:
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            labels = batch['cool'].to(device)
+            
+            # Predict
+            outputs = model(input_ids,attention_mask)
+            
+            predictions.extend(outputs.view(-1).tolist())
+            actuals.extend(labels.view(-1).tolist())
     
-    train_loader = DataLoader(train_dataset, shuffle=True)
+    # Calculate metrics
+    mse = mean_squared_error(actuals, predictions)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(actuals, predictions)
+    r2 = r2_score(actuals, predictions)
+
+def training_TransformerRNNClassifier(train_loader):
     model = yelp.TransformerRNNClassifier(device=device,transformer_model_name=model_name, hidden_dim=128, num_layers=3, num_classes=5) 
     model = model.to(device)
-    optimizer = AdamW(model.parameters(), lr=5e-5)
     loss_fn = torch.nn.CrossEntropyLoss()
-
-    # Scheduler is optional but can help with learning rate scheduling
+    optimizer = AdamW(model.parameters(), lr=5e-5)
     num_epochs = 3
     scheduler = get_linear_schedule_with_warmup(optimizer, 
                                                 num_warmup_steps=0, 
@@ -102,7 +101,7 @@ def train(file_name):
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
-            target = batch['labels'].to(device)
+            target = batch['labels'].to(device).float()
             target -= 1
             outputs = model(input_ids, attention_mask)  # Forward pass
             loss = loss_fn(outputs, target)
@@ -111,7 +110,34 @@ def train(file_name):
             scheduler.step()
             progress_bar.set_description(f'Epoch {epoch}')
             progress_bar.set_postfix(loss=loss.item())
+    torch.save(model, 'TransformerRNNClassifier')
+    
+def training(train_loader, target):
+    model = yelp.TransformerRNNRegression(device, model_name)
+    model = model.to(device) 
+    loss_fn = torch.nn.MSELoss()
+    num_epochs = 3
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-5)
+    model.train()  # Set model to training mode
 
-    torch.save(model, 'FurtherEnhancedRatingClassifier')
+    for epoch in range(num_epochs):
+        progress_bar = tqdm(train_loader)
+        for batch in progress_bar:
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            target = batch[target].to(device).float()
+            target = target
+            # Assuming model and data are moved to the same device
+            predictions = model(input_ids, attention_mask)
+            loss = loss_fn(predictions, target.unsqueeze(1))
+        
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            progress_bar.set_description(f'Epoch {epoch}')
+            progress_bar.set_postfix(loss=loss.item())
+    
+    torch.save(model, 'TransformerRNNRegressor')
 
-    validation(model, test_dataset)
+   
+
